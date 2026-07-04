@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Problem Tracker</title>
+<link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" width="22" height="22">
+          <path d="M6 3v18l6-4 6 4V3H6z"/>
+        </svg>
+        <h1>Problem Tracker</h1>
+      </div>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <div class="controls">
+      <input type="text" id="search" placeholder="Search by title..." />
+      <select id="platform-filter">
+        <option value="all">All platforms</option>
+        <option value="leetcode">LeetCode</option>
+        <option value="codeforces">Codeforces</option>
+        <option value="cses">CSES</option>
+        <option value="atcoder">AtCoder</option>
+      </select>
+      <select id="status-filter">
+        <option value="all">All statuses</option>
+        <option value="unsolved">Unsolved</option>
+        <option value="solved">Solved</option>
+      </select>
+    </div>
+
+    <div id="empty-state" class="empty-state" style="display:none;">
+      <p>Nothing tracked yet.</p>
+      <p class="sub">Open a problem on LeetCode, Codeforces, CSES, or AtCoder — a small tab appears bottom-right to bookmark it.</p>
+    </div>
+
+    <table id="table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Platform</th>
+          <th>Problem</th>
+          <th>Time</th>
+          <th>Notes</th>
+          <th>Added</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <script src="../storage.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

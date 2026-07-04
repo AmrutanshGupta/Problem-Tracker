@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Problem Tracker",
+  "version": "1.0.0",
+  "description": "Bookmark and track problems across LeetCode, Codeforces, CSES, and AtCoder — right on the problem page.",
+  "permissions": ["storage"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open Problem Tracker",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["pt-timer-frame.html", "pt-timer-frame.js"],
+      "matches": [
+        "*://leetcode.com/*",
+        "*://*.leetcode.com/*",
+        "*://codeforces.com/*",
+        "*://*.codeforces.com/*",
+        "*://cses.fi/*",
+        "*://atcoder.jp/*"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://leetcode.com/problems/*", "*://*.leetcode.com/problems/*"],
+      "js": ["storage.js", "content-scripts/leetcode.js", "content-scripts/common.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://codeforces.com/problemset/problem/*",
+        "*://codeforces.com/contest/*/problem/*",
+        "*://*.codeforces.com/problemset/problem/*",
+        "*://*.codeforces.com/contest/*/problem/*"
+      ],
+      "js": ["storage.js", "content-scripts/codeforces.js", "content-scripts/common.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://cses.fi/problemset/task/*"],
+      "js": ["storage.js", "content-scripts/cses.js", "content-scripts/common.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://atcoder.jp/contests/*/tasks/*"],
+      "js": ["storage.js", "content-scripts/atcoder.js", "content-scripts/common.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
