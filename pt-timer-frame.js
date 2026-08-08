@@ -7,7 +7,6 @@
 
   let timerRecord = null;
 
-
   let displayInterval = null;
   let syncInterval = null;
 
@@ -24,7 +23,6 @@
     return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   }
 
-
   const SESSION_FLAG_PREFIX = 'pt_session_started_';
 
   function hasSessionStarted() {
@@ -39,7 +37,7 @@
     try {
       sessionStorage.setItem(SESSION_FLAG_PREFIX + problemId, '1');
     } catch (e) {
-
+      // ignore
     }
   }
 
@@ -56,17 +54,29 @@
     display.textContent = formatTime(currentTotalSeconds());
   }
 
+  function updatePlayButton() {
+    playBtn.textContent = timerRecord && timerRecord.timerRunning ? '⏸' : '▶';
+  }
+
   async function getAllTimers() {
     const r = await chrome.storage.local.get(TIMER_KEY);
     return r[TIMER_KEY] || {};
   }
 
+  // IMPORTANT: takes a snapshot of `rec` immediately, rather than holding a
+  // reference to the shared `timerRecord` object. Previously this function
+  // stored the *live* object, so a click (pause/resume) and the periodic
+  // background sync (every 15s, while running) could end up mutating the
+  // exact same in-flight object concurrently — whichever write happened to
+  // land last would silently clobber the other, sometimes leaving the
+  // button stuck on the wrong icon even though nothing threw an error.
   async function upsertTimer(rec) {
+    const snapshot = { ...rec };
     const all = await getAllTimers();
-    all[rec.id] = rec;
+    all[snapshot.id] = snapshot;
     await chrome.storage.local.set({ [TIMER_KEY]: all });
-    mirrorTimeToBookmark(currentTotalSecondsFor(rec));
-    return rec;
+    mirrorTimeToBookmark(currentTotalSecondsFor(snapshot));
+    return snapshot;
   }
 
   function currentTotalSecondsFor(rec) {
@@ -98,11 +108,13 @@
   }
 
   async function syncTime() {
-    if (timerRecord.timerRunning && timerRecord.startedAt) {
-      timerRecord.timeSpent = currentTotalSeconds();
-      timerRecord.startedAt = Date.now();
-      timerRecord = await upsertTimer(timerRecord);
-    }
+    if (!timerRecord || !timerRecord.timerRunning || !timerRecord.startedAt) return;
+    const updated = {
+      ...timerRecord,
+      timeSpent: currentTotalSeconds(),
+      startedAt: Date.now()
+    };
+    timerRecord = await upsertTimer(updated);
   }
 
   function manageTicking() {
@@ -124,32 +136,40 @@
   }
 
   playBtn.addEventListener('click', async () => {
-    if (timerRecord.timerRunning) {
+    if (!timerRecord) return; // timer hasn't finished loading yet — ignore the click rather than throw
+
+    const updated = { ...timerRecord };
+    if (updated.timerRunning) {
       // Pause: finalize the elapsed time and drop the anchor.
-      timerRecord.timeSpent = currentTotalSeconds();
-      timerRecord.timerRunning = false;
-      timerRecord.startedAt = null;
+      updated.timeSpent = currentTotalSeconds();
+      updated.timerRunning = false;
+      updated.startedAt = null;
     } else {
       // Resume: start a fresh segment from now.
-      timerRecord.timerRunning = true;
-      timerRecord.startedAt = Date.now();
+      updated.timerRunning = true;
+      updated.startedAt = Date.now();
     }
-    timerRecord = await upsertTimer(timerRecord);
-    playBtn.textContent = timerRecord.timerRunning ? '⏸' : '▶';
+
+    timerRecord = updated;
+    updatePlayButton(); // reflect the click immediately, don't wait on storage
     renderDisplay();
     manageTicking();
+
+    timerRecord = await upsertTimer(updated);
+    updatePlayButton();
   });
 
   resetBtn.addEventListener('click', async () => {
-    timerRecord.timeSpent = 0;
-    timerRecord.timerRunning = false;
-    timerRecord.startedAt = null;
-    timerRecord = await upsertTimer(timerRecord);
-    renderDisplay();
-    playBtn.textContent = '▶';
-    manageTicking();
-  });
+    if (!timerRecord) return;
 
+    const updated = { ...timerRecord, timeSpent: 0, timerRunning: false, startedAt: null };
+    timerRecord = updated;
+    renderDisplay();
+    updatePlayButton();
+    manageTicking();
+
+    timerRecord = await upsertTimer(updated);
+  });
 
   chrome.storage.onChanged.addListener((changes) => {
     if (changes[TIMER_KEY]) {
@@ -158,7 +178,7 @@
       if (updated) {
         timerRecord = updated;
         renderDisplay();
-        playBtn.textContent = timerRecord.timerRunning ? '⏸' : '▶';
+        updatePlayButton();
         manageTicking();
       }
     }
@@ -168,18 +188,20 @@
       const p = all[problemId];
       if (p && p.status === 'solved' && timerRecord && timerRecord.timerRunning) {
         (async () => {
-          timerRecord.timeSpent = currentTotalSeconds();
-          timerRecord.timerRunning = false;
-          timerRecord.startedAt = null;
-          timerRecord = await upsertTimer(timerRecord);
-          playBtn.textContent = '▶';
+          const updated = {
+            ...timerRecord,
+            timeSpent: currentTotalSeconds(),
+            timerRunning: false,
+            startedAt: null
+          };
+          timerRecord = await upsertTimer(updated);
+          updatePlayButton();
           renderDisplay();
           manageTicking();
         })();
       }
     }
   });
-
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') syncTime();
@@ -195,24 +217,21 @@
       id: problemId, timeSpent: 0, timerRunning: false, startedAt: null
     };
 
-
     if (timerRecord.timerRunning && !timerRecord.startedAt) {
       timerRecord.startedAt = Date.now();
     }
 
-
     if (!hasSessionStarted()) {
       const status = await getProblemStatus();
       if (status !== 'solved') {
-        timerRecord.timerRunning = true;
-        timerRecord.startedAt = Date.now();
+        timerRecord = { ...timerRecord, timerRunning: true, startedAt: Date.now() };
         timerRecord = await upsertTimer(timerRecord);
       }
       markSessionStarted();
     }
 
     renderDisplay();
-    playBtn.textContent = timerRecord.timerRunning ? '⏸' : '▶';
+    updatePlayButton();
     manageTicking();
   }
 
