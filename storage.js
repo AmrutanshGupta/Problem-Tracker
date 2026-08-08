@@ -1,33 +1,44 @@
-// Shared storage helper. Uses chrome.storage.sync so bookmarks follow you
-// across any Chrome install signed into the same account, with an automatic
-// fallback to chrome.storage.local if sync ever hits its quota.
 const PT_KEY = 'pt_problems';
+const PT_MIGRATED_KEY = 'pt_migrated_from_sync_v1';
+
+function getFromArea(area, key) {
+  return new Promise((resolve) => {
+    area.get(key, (res) => {
+      if (chrome.runtime.lastError || !res) {
+        resolve(null);
+      } else {
+        resolve(res[key] || null);
+      }
+    });
+  });
+}
 
 const PTStorage = {
-  getAll() {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get(PT_KEY, (res) => {
-        if (chrome.runtime.lastError || !res || !res[PT_KEY]) {
-          chrome.storage.local.get(PT_KEY, (localRes) => {
-            resolve((localRes && localRes[PT_KEY]) || {});
-          });
-        } else {
-          resolve(res[PT_KEY]);
-        }
-      });
+  async _migrateIfNeeded() {
+    const alreadyMigrated = await getFromArea(chrome.storage.local, PT_MIGRATED_KEY);
+    if (alreadyMigrated) return;
+
+    const [syncData, localData] = await Promise.all([
+      getFromArea(chrome.storage.sync, PT_KEY),
+      getFromArea(chrome.storage.local, PT_KEY)
+    ]);
+
+    const merged = { ...(syncData || {}), ...(localData || {}) };
+
+    await new Promise((resolve) => {
+      chrome.storage.local.set({ [PT_KEY]: merged, [PT_MIGRATED_KEY]: true }, resolve);
     });
+  },
+
+  async getAll() {
+    await this._migrateIfNeeded();
+    const data = await getFromArea(chrome.storage.local, PT_KEY);
+    return data || {};
   },
 
   saveAll(data) {
     return new Promise((resolve) => {
-      chrome.storage.sync.set({ [PT_KEY]: data }, () => {
-        if (chrome.runtime.lastError) {
-          // Sync quota hit (rare — ~500+ problems) — fall back to local.
-          chrome.storage.local.set({ [PT_KEY]: data }, () => resolve('local'));
-        } else {
-          resolve('sync');
-        }
-      });
+      chrome.storage.local.set({ [PT_KEY]: data }, () => resolve('local'));
     });
   },
 
