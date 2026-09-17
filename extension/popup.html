@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Problem Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { width: 340px; }
+  </style>
+</head>
+<body class="bg-neutral-950 text-neutral-200 font-sans p-4 m-0 selection:bg-blue-500/30">
+  
+  <!-- Header -->
+  <header class="flex items-center gap-3 border-b border-neutral-800 pb-4 mb-4">
+    <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold tracking-tighter">PT</div>
+    <div>
+      <h1 class="text-sm font-semibold text-white">Problem Tracker</h1>
+      <p class="text-xs text-neutral-400">v2.0 • Offline Ready</p>
+    </div>
+  </header>
+
+  <!-- Login Section -->
+  <div id="login-section" class="hidden space-y-3">
+    <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+      <p class="text-xs text-blue-400">Log in to sync your progress across devices.</p>
+    </div>
+    <input type="text" id="username" placeholder="Username" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+    <input type="password" id="password" placeholder="Password" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+    <button id="login-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg px-3 py-2.5 text-sm transition-colors shadow-[0_0_15px_rgba(37,99,235,0.3)]">Login / Register</button>
+  </div>
+
+  <!-- Main Section -->
+  <div id="main-section" class="hidden space-y-4">
+    <div class="grid grid-cols-2 gap-2">
+      <button id="bookmark-btn" class="col-span-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl p-3 flex flex-col items-center gap-1 transition-colors group">
+        <span class="text-lg group-hover:scale-110 transition-transform">🔖</span>
+        <span class="text-xs font-medium">Bookmark Problem</span>
+      </button>
+      <button id="snapshot-btn" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl p-3 flex flex-col items-center gap-1 transition-colors group">
+        <span class="text-lg group-hover:scale-110 transition-transform">📸</span>
+        <span class="text-xs font-medium">Snapshot</span>
+      </button>
+      <button id="revisit-btn" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl p-3 flex flex-col items-center gap-1 transition-colors group">
+        <span class="text-lg group-hover:scale-110 transition-transform">🕰️</span>
+        <span class="text-xs font-medium">Revisit</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Review Section -->
+  <div id="review-section" class="hidden mt-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Due for Review</h2>
+      <span id="due-count" class="bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold">0</span>
+    </div>
+    <ul id="review-list" class="space-y-2"></ul>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
