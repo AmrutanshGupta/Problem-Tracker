@@ -6,7 +6,7 @@ chrome.action.onClicked.addListener(() => {
 // so the injected panel asks the background script to do it.
 chrome.runtime.onMessage.addListener((message) => {
   if (message && message.type === 'OPEN_OPTIONS') {
-    chrome.runtime.openOptionsPage();
+    chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
   }
 });
 
