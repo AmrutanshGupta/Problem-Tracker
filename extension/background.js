@@ -23,10 +23,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 chrome.alarms.create("syncAlarm", { periodInMinutes: 1 });
+chrome.alarms.create("keepAlive", { periodInMinutes: 14 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "syncAlarm") {
         processSyncQueue();
+    }
+    if (alarm.name === "keepAlive") {
+        fetch(`${API_BASE_URL}/health`).catch(() => {});
     }
 });
 
