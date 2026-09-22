@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://problem-tracker-backend-a0zr.onrender.com";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "PROBLEM_SOLVED") {

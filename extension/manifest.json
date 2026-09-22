@@ -3,7 +3,7 @@
   "name": "Problem Tracker",
   "version": "1.0.0",
   "description": "Bookmark and track problems across LeetCode, Codeforces, CSES, and AtCoder — right on the problem page.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "activeTab", "tabs"],
   "host_permissions": [
     "*://*.onrender.com/*",
     "http://localhost:8000/*"
