@@ -55,5 +55,5 @@ async def refresh_user_daily_activity():
 async def analytics_worker():
     while True:
         await refresh_user_daily_activity()
-        await asyncio.sleep(60)
+        await asyncio.sleep(600)  # Run every 10 minutes to avoid exhausting free-tier DB connections
 

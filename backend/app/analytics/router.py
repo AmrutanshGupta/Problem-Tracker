@@ -9,11 +9,11 @@ from app.db.models import User, UserDailyActivity
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 @router.get("/activity")
-def get_user_activity(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_user_activity(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """
     Returns the user's daily activity (simulated materialized view query)
     """
-    activities = db.query(UserDailyActivity).filter(UserDailyActivity.user_id == current_user.id).order_by(UserDailyActivity.date.desc()).limit(30).all()
+    activities = db.query(UserDailyActivity).filter(UserDailyActivity.user_id == current_user).order_by(UserDailyActivity.date.desc()).limit(30).all()
     
     return [
         {
