@@ -28,6 +28,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     mainSection.classList.remove('hidden');
     reviewSection.classList.remove('hidden');
     await loadReviews();
+    await loadActivity();
+  }
+  
+  async function loadActivity() {
+      try {
+          const activity = await api.getActivity();
+          if (activity && activity.length > 0) {
+              // The first element is the most recent day
+              const today = activity[0];
+              document.getElementById('today-reviews').innerText = today.reviews_completed || 0;
+              document.getElementById('today-bookmarks').innerText = today.bookmarks_added || 0;
+          }
+      } catch(e) {
+          console.error("Failed to load activity", e);
+      }
   }
   
   async function getCurrentProblemDetails() {

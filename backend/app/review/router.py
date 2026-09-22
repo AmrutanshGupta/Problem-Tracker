@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.auth.jwt import get_current_user
 from app.db.models import ReviewSchedule
 from app.events.logger import append_event
+from app.cache.service import cache
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -29,11 +30,19 @@ class QualityScore(BaseModel):
 
 @router.get("/due", response_model=List[ReviewScheduleResponse])
 def get_due_reviews(db: Session = Depends(get_db), current_user: uuid.UUID = Depends(get_current_user)):
+    cache_key = f"due_reviews_{current_user}"
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     now = datetime.utcnow()
     due = db.query(ReviewSchedule).filter(
         ReviewSchedule.user_id == current_user,
         ReviewSchedule.due_at <= now
     ).order_by(ReviewSchedule.due_at.asc()).all()
+    
+    # Store in cache
+    cache.set(cache_key, due)
     return due
 
 @router.post("/{problem_id}/schedule", response_model=ReviewScheduleResponse)
@@ -70,6 +79,10 @@ def schedule_review(problem_id: str, db: Session = Depends(get_db), current_user
     
     db.commit()
     db.refresh(new_schedule)
+    
+    # Invalidate cache
+    cache.delete(f"due_reviews_{current_user}")
+    
     return new_schedule
 
 @router.post("/{problem_id}/complete", response_model=ReviewScheduleResponse)
@@ -111,4 +124,8 @@ def complete_review(problem_id: str, score: QualityScore, db: Session = Depends(
     
     db.commit()
     db.refresh(schedule)
+    
+    # Invalidate cache
+    cache.delete(f"due_reviews_{current_user}")
+    
     return schedule

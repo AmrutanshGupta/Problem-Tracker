@@ -36,10 +36,22 @@
         <span class="text-lg group-hover:scale-110 transition-transform">🔖</span>
         <span class="text-xs font-medium">Bookmark Problem</span>
       </button>
-      <button id="revisit-btn" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl p-3 flex flex-col items-center gap-1 transition-colors group">
+      <button id="revisit-btn" class="col-span-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl p-3 flex flex-col items-center gap-1 transition-colors group">
         <span class="text-lg group-hover:scale-110 transition-transform">🕰️</span>
         <span class="text-xs font-medium">Revisit</span>
       </button>
+    </div>
+
+    <!-- Analytics Dashboard -->
+    <div id="analytics-dashboard" class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex justify-between items-center">
+      <div>
+        <p class="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Today's Reviews</p>
+        <p id="today-reviews" class="text-lg font-mono font-bold text-white">0</p>
+      </div>
+      <div class="text-right">
+        <p class="text-[10px] text-green-400 font-bold uppercase tracking-wider">Bookmarks Added</p>
+        <p id="today-bookmarks" class="text-lg font-mono font-bold text-white">0</p>
+      </div>
     </div>
   </div>
 

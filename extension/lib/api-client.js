@@ -67,6 +67,8 @@ export const api = {
   bookmark: (problem_id, platform, title, url) => 
     fetchAPI("/bookmarks", "POST", { problem_id, platform, title, url }),
     
+  getActivity: () => fetchAPI("/analytics/activity", "GET"),
+    
   getDueReviews: () => fetchAPI("/review/due", "GET"),
   
   scheduleReview: (problem_id) => fetchAPI(`/review/${problem_id}/schedule`, "POST"),

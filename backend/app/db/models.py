@@ -41,3 +41,12 @@ class ReviewSchedule(Base):
     repetition_count = Column(Integer, default=0)
     due_at = Column(DateTime)
     last_reviewed_at = Column(DateTime, default=datetime.utcnow)
+
+class UserDailyActivity(Base):
+    __tablename__ = "user_daily_activity"
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    date = Column(String, primary_key=True) # YYYY-MM-DD
+    reviews_completed = Column(Integer, default=0)
+    bookmarks_added = Column(Integer, default=0)
+    last_updated = Column(DateTime, default=datetime.utcnow)
+

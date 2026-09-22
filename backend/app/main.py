@@ -8,6 +8,8 @@ import traceback
 from app.auth.router import router as auth_router
 from app.bookmarks.router import router as bookmarks_router
 from app.review.router import router as review_router
+from app.analytics.router import router as analytics_router
+from app.analytics.jobs import analytics_worker
 from app.logging_config import logger
 from app.db.session import engine
 
@@ -34,12 +36,17 @@ async def log_requests(request: Request, call_next):
         logger.error(f"{request.method} {request.url.path} -> 500 ({process_time:.2f}ms)\n{traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
+import asyncio
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         logger.info("Backend started, DB connection OK")
+        
+        # Start background worker
+        asyncio.create_task(analytics_worker())
+        logger.info("Background analytics worker started")
     except Exception as e:
         logger.error(f"DB connection failed: {e}")
         raise
@@ -47,6 +54,7 @@ def startup_event():
 app.include_router(auth_router)
 app.include_router(bookmarks_router)
 app.include_router(review_router)
+app.include_router(analytics_router)
 
 @app.get("/health")
 def health_check():
