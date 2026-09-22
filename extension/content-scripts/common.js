@@ -348,7 +348,7 @@
 
     panel.querySelector('#pt-open-settings').addEventListener('click', (e) => {
       e.stopPropagation();
-      window.open(chrome.runtime.getURL('options/options.html'), '_blank');
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
     });
   }
 
