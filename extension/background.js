@@ -14,7 +14,7 @@ const API_BASE_URL = "http://localhost:8000";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "PROBLEM_SOLVED") {
-        console.log("Problem solved event received for problem ID:", request.problemId);
+        // Problem solved event received
         // Automatically snapshot code on solve (optional v2 feature)
     }
     if (request.action === "SYNC_QUEUE") {
@@ -22,7 +22,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// Create an alarm to periodically check the sync queue
 chrome.alarms.create("syncAlarm", { periodInMinutes: 1 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -38,7 +37,7 @@ async function processSyncQueue() {
     
     if (queue.length === 0 || !token) return;
     
-    console.log("Processing sync queue. Items:", queue.length);
+    // Processing sync queue
     let remainingQueue = [];
     
     for (const req of queue) {
@@ -52,15 +51,13 @@ async function processSyncQueue() {
                 body: req.body ? JSON.stringify(req.body) : null
             });
             if (!res.ok) {
-                // If it's a 4xx error, there's no point retrying
                 if (res.status >= 400 && res.status < 500) {
-                    console.error("Queue item permanently failed", req);
+                    // Queue item permanently failed
                 } else {
                     remainingQueue.push(req);
                 }
             }
         } catch (e) {
-            // Still offline, push back to queue
             remainingQueue.push(req);
         }
     }

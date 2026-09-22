@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mainSection = document.getElementById('main-section');
   const reviewSection = document.getElementById('review-section');
   
-  // Check auth
   const { pt_token } = await chrome.storage.local.get("pt_token");
   if (!pt_token) {
     loginSection.classList.remove('hidden');
@@ -32,8 +31,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   async function getCurrentProblemDetails() {
-      // In a real scenario, this gets data from content scripts via messaging
-      // For demonstration, we'll extract dummy/URL info
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       return {
           problem_id: tab.url.split('/').pop() || "unknown",
@@ -51,21 +48,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch(e) { alert(e); }
   });
   
-  document.getElementById('snapshot-btn').addEventListener('click', async () => {
-      const details = await getCurrentProblemDetails();
-      
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      chrome.tabs.sendMessage(tab.id, { action: "GET_CODE" }, async (response) => {
-          let codeText = response?.code;
-          if (!codeText) {
-              codeText = "// Could not extract code from editor. Are you on a supported problem page?";
-          }
-          try {
-              await api.saveSnapshot(details.problem_id, "unknown", codeText);
-              alert("Snapshot saved!");
-          } catch(e) { alert(e); }
-      });
-  });
   
   document.getElementById('revisit-btn').addEventListener('click', async () => {
       const details = await getCurrentProblemDetails();
@@ -105,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               });
           });
       } catch(e) {
-          console.error("Failed to load reviews", e);
+          // Failed to load reviews
       }
   }
 });

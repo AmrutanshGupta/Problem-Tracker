@@ -1,84 +1,84 @@
-import pytest
-from httpx import AsyncClient, ASGITransport
+def test_add_bookmark(client):
+    # First login to get token
+    login_response = client.post(
+        "/auth/token",
+        data={"username": "userA", "password": "password"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
 
-@pytest.fixture
-async def auth_token(client):
-    transport = ASGITransport(app=client)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        resp = await ac.post(
-            "/auth/token",
-            data={"username": "testuser", "password": "pass"},
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-    return resp.json()["access_token"]
-
-@pytest.fixture
-async def auth_token_user2(client):
-    transport = ASGITransport(app=client)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        resp = await ac.post(
-            "/auth/token",
-            data={"username": "user2", "password": "pass"},
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-    return resp.json()["access_token"]
-
-@pytest.mark.asyncio
-async def test_add_bookmark(client, auth_token):
-    transport = ASGITransport(app=client)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.post(
-            "/bookmarks",
-            json={"problem_id": "LC-1", "platform": "LeetCode", "title": "Two Sum", "url": "url"},
-            headers={"Authorization": f"Bearer {auth_token}"}
-        )
+    # Add bookmark
+    response = client.post(
+        "/bookmarks",
+        json={
+            "problem_id": "leetcode-1",
+            "platform": "leetcode",
+            "title": "Two Sum",
+            "url": "https://leetcode.com/problems/two-sum/"
+        },
+        headers=headers
+    )
     assert response.status_code == 200
     data = response.json()
-    assert data["problem_id"] == "LC-1"
+    assert data["problem_id"] == "leetcode-1"
+    assert data["is_active"] == 1
 
-@pytest.mark.asyncio
-async def test_get_bookmarks_isolation(client, auth_token, auth_token_user2):
-    transport = ASGITransport(app=client)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        # User 1 adds LC-1
-        await ac.post(
-            "/bookmarks",
-            json={"problem_id": "LC-1", "platform": "LeetCode", "title": "Two Sum", "url": "url"},
-            headers={"Authorization": f"Bearer {auth_token}"}
-        )
-        # User 2 adds LC-2
-        await ac.post(
-            "/bookmarks",
-            json={"problem_id": "LC-2", "platform": "LeetCode", "title": "Add Two", "url": "url2"},
-            headers={"Authorization": f"Bearer {auth_token_user2}"}
-        )
-        
-        # User 1 should only see LC-1
-        res1 = await ac.get("/bookmarks", headers={"Authorization": f"Bearer {auth_token}"})
-        data1 = res1.json()
-        assert len(data1) == 1
-        assert data1[0]["problem_id"] == "LC-1"
-        
-        # User 2 should only see LC-2
-        res2 = await ac.get("/bookmarks", headers={"Authorization": f"Bearer {auth_token_user2}"})
-        data2 = res2.json()
-        assert len(data2) == 1
-        assert data2[0]["problem_id"] == "LC-2"
+def test_add_duplicate_bookmark_idempotent(client):
+    # Login
+    login_response = client.post("/auth/token", data={"username": "userA", "password": "p"})
+    headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
 
-@pytest.mark.asyncio
-async def test_delete_bookmark(client, auth_token):
-    transport = ASGITransport(app=client)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        # Create LC-1
-        await ac.post(
-            "/bookmarks",
-            json={"problem_id": "LC-1", "platform": "LeetCode", "title": "Two Sum", "url": "url"},
-            headers={"Authorization": f"Bearer {auth_token}"}
-        )
-        # Delete LC-1
-        res = await ac.delete("/bookmarks/LC-1", headers={"Authorization": f"Bearer {auth_token}"})
-        assert res.status_code == 200
-        
-        # Ensure it's gone
-        res_list = await ac.get("/bookmarks", headers={"Authorization": f"Bearer {auth_token}"})
-        assert len(res_list.json()) == 0
+    payload = {
+        "problem_id": "leetcode-1",
+        "platform": "leetcode",
+        "title": "Two Sum",
+        "url": "https://leetcode.com/problems/two-sum/"
+    }
+
+    # First add
+    client.post("/bookmarks", json=payload, headers=headers)
+    # Second add
+    response = client.post("/bookmarks", json=payload, headers=headers)
+    assert response.status_code == 200
+    
+    # Verify only one bookmark exists
+    get_response = client.get("/bookmarks", headers=headers)
+    assert len(get_response.json()) == 1
+
+def test_cross_user_isolation(client):
+    # User A adds a bookmark
+    token_a = client.post("/auth/token", data={"username": "userA", "password": "p"}).json()["access_token"]
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    client.post("/bookmarks", json={
+        "problem_id": "leetcode-1",
+        "platform": "leetcode",
+        "title": "Two Sum",
+        "url": "https://leetcode.com/problems/two-sum/"
+    }, headers=headers_a)
+
+    # User B should not see User A's bookmark
+    token_b = client.post("/auth/token", data={"username": "userB", "password": "p"}).json()["access_token"]
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    response_b = client.get("/bookmarks", headers=headers_b)
+    assert response_b.status_code == 200
+    assert len(response_b.json()) == 0
+
+def test_delete_bookmark(client):
+    token = client.post("/auth/token", data={"username": "userA", "password": "p"}).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    client.post("/bookmarks", json={
+        "problem_id": "leetcode-1",
+        "platform": "leetcode",
+        "title": "Two Sum",
+        "url": "https://leetcode.com/problems/two-sum/"
+    }, headers=headers)
+
+    # Delete
+    del_res = client.delete("/bookmarks/leetcode-1", headers=headers)
+    assert del_res.status_code == 200
+
+    # Ensure it doesn't show up in GET
+    get_res = client.get("/bookmarks", headers=headers)
+    assert len(get_res.json()) == 0

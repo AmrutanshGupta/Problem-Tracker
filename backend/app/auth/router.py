@@ -17,7 +17,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if not form_data.username or not form_data.password:
          raise HTTPException(status_code=400, detail="Incorrect username or password")
     
-    # Generate consistent UUID for testing from username
     user_id = uuid.uuid5(uuid.NAMESPACE_DNS, form_data.username)
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

@@ -32,16 +32,6 @@ class Bookmark(Base):
     is_active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class CodeSnapshot(Base):
-    __tablename__ = "code_snapshots"
-    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    problem_id = Column(String, index=True)
-    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"))
-    language = Column(String)
-    code_text = Column(String)
-    code_hash = Column(String, unique=True) # For deduplication
-    created_at = Column(DateTime, default=datetime.utcnow)
-
 class ReviewSchedule(Base):
     __tablename__ = "review_schedule"
     problem_id = Column(String, primary_key=True)
