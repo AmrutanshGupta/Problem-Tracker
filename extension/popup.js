@@ -4,20 +4,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const loginSection = document.getElementById('login-section');
   const mainSection = document.getElementById('main-section');
   const reviewSection = document.getElementById('review-section');
-  
+
   const { pt_token } = await chrome.storage.local.get("pt_token");
   if (!pt_token) {
-    loginSection.classList.remove('hidden');
+    loginSection.style.display = 'block';
   } else {
     showMainUI();
   }
-  
+
   document.getElementById('login-btn').addEventListener('click', async () => {
     const u = document.getElementById('username').value;
     const p = document.getElementById('password').value;
     try {
       await api.login(u, p);
-      loginSection.classList.add('hidden');
+      loginSection.style.display = 'none';
       showMainUI();
     } catch(e) {
       alert(e.message);
@@ -29,8 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   async function showMainUI() {
-    mainSection.classList.remove('hidden');
-    reviewSection.classList.remove('hidden');
+    mainSection.style.display = 'block';
     await loadReviews();
     await loadActivity();
   }
@@ -81,7 +80,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           const due = await api.getDueReviews();
           document.getElementById('due-count').innerText = due.length;
           const list = document.getElementById('review-list');
+          const reviewSection = document.getElementById('review-section');
           list.innerHTML = '';
+          if (due.length > 0) {
+            reviewSection.style.display = 'block';
+          }
           due.forEach(item => {
               const li = document.createElement('li');
               li.className = 'review-item';
