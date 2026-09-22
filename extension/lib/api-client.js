@@ -31,13 +31,11 @@ async function fetchAPI(path, method = "GET", body = null) {
   } catch (err) {
     if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
       if (method !== "GET") {
-        // Queue it for later
         const current = await chrome.storage.local.get("pt_sync_queue");
         const queue = current.pt_sync_queue || [];
         queue.push({ path, method, body });
         await chrome.storage.local.set({ "pt_sync_queue": queue });
 
-        // Trigger background worker to attempt sync
         chrome.runtime.sendMessage({ action: "SYNC_QUEUE" });
         throw new Error("You are offline. Action queued for sync.");
       }

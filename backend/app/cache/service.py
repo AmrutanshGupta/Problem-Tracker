@@ -4,7 +4,6 @@ import json
 
 class CacheService:
     def __init__(self):
-        # 100 items, expires in 300 seconds
         self._cache = TTLCache(maxsize=100, ttl=300)
         
     def get(self, key: str) -> Optional[Any]:
@@ -17,6 +16,5 @@ class CacheService:
         if key in self._cache:
             del self._cache[key]
 
-# Singleton instance
 cache = CacheService()
 

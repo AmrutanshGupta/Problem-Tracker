@@ -35,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
           const activity = await api.getActivity();
           if (activity && activity.length > 0) {
-              // The first element is the most recent day
               const today = activity[0];
               document.getElementById('today-reviews').innerText = today.reviews_completed || 0;
               document.getElementById('today-bookmarks').innerText = today.bookmarks_added || 0;
@@ -102,7 +101,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               });
           });
       } catch(e) {
-          // Failed to load reviews
       }
   }
 });

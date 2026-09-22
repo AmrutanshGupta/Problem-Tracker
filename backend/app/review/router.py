@@ -41,7 +41,6 @@ def get_due_reviews(db: Session = Depends(get_db), current_user: uuid.UUID = Dep
         ReviewSchedule.due_at <= now
     ).order_by(ReviewSchedule.due_at.asc()).all()
     
-    # Store in cache
     cache.set(cache_key, due)
     return due
 
@@ -80,7 +79,6 @@ def schedule_review(problem_id: str, db: Session = Depends(get_db), current_user
     db.commit()
     db.refresh(new_schedule)
     
-    # Invalidate cache
     cache.delete(f"due_reviews_{current_user}")
     
     return new_schedule
@@ -99,7 +97,6 @@ def complete_review(problem_id: str, score: QualityScore, db: Session = Depends(
     if q < 0 or q > 5:
         raise HTTPException(status_code=400, detail="Quality score must be 0-5")
         
-    # SM-2 logic
     if q < 3:
         schedule.repetition_count = 0
         schedule.interval_days = 1
@@ -125,7 +122,6 @@ def complete_review(problem_id: str, score: QualityScore, db: Session = Depends(
     db.commit()
     db.refresh(schedule)
     
-    # Invalidate cache
     cache.delete(f"due_reviews_{current_user}")
     
     return schedule
