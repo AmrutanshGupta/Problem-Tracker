@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "description": "Bookmark and track problems across LeetCode, Codeforces, CSES, and AtCoder — right on the problem page.",
   "permissions": ["storage"],
+  "host_permissions": [
+    "*://*.onrender.com/*",
+    "http://localhost:8000/*"
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
