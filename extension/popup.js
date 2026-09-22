@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  document.getElementById('view-all-btn')?.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
+  });
+
   async function showMainUI() {
     mainSection.classList.remove('hidden');
     reviewSection.classList.remove('hidden');
