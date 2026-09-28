@@ -67,90 +67,105 @@
       <style>
         :host {
           all: initial;
-          --bg: #0D0E15;
-          --bg-alt: #161824;
-          --border: #2A2D40;
-          --accent: #19F9D8; 
-          --accent-glow: rgba(25, 249, 216, 0.6);
-          --unsolved: #4A70A9;
-          --text: #EFECE3;
-          --muted: #8FABD4;
-          --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
-          --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          --font-mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', monospace;
+          --bg: #080909;
+          --surface: #0f1011;
+          --surface-2: #151618;
+          --border: #1c1d20;
+          --border-2: #252729;
+          --accent: #22d3ee; 
+          --accent-glow: rgba(34, 211, 238, 0.4);
+          --green: #10b981;
+          --text: #e9eaec;
+          --text-2: #80838f;
+          --text-3: #44464f;
+          --red: #f87171;
+          --font: 'Geist', ui-sans-serif, -apple-system, sans-serif;
+          --font-mono: ui-monospace, 'JetBrains Mono', monospace;
+          --radius: 7px;
+          --radius-sm: 4px;
         }
         
-        * { box-sizing: border-box; font-family: var(--font-body); }
+        * { box-sizing: border-box; font-family: var(--font); }
         
         .pill {
-          width: 58px; height: 58px; border-radius: 50%; border: none;
+          width: 54px; height: 54px; border-radius: 50%; border: none;
           display: flex; align-items: center; justify-content: center; cursor: pointer;
-          background: rgba(30, 30, 34, 0.65);
-          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: var(--surface);
+          border: 1px solid var(--border-2);
           box-shadow: 0 4px 16px rgba(0,0,0,0.6);
-          transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+          transition: all 0.2s;
         }
         
         .pill:hover { 
-          transform: translateY(-3px) scale(1.05); 
-          border-color: rgba(255, 255, 255, 0.2);
+          transform: translateY(-2px); 
+          border-color: rgba(34, 211, 238, 0.5);
           box-shadow: 0 8px 24px var(--accent-glow); 
         }
         
-        .pill svg { width: 28px; height: 28px; }
+        .pill svg { width: 24px; height: 24px; }
         
         .pill.not-bookmarked #pt-icon-path { 
-          fill: none; stroke: var(--accent); stroke-width: 2; 
-          filter: drop-shadow(0 0 3px var(--accent-glow));
+          fill: none; stroke: var(--text-3); stroke-width: 2; 
         }
         
-        .pill.bookmarked { background: rgba(25, 249, 216, 0.15); border-color: var(--accent); }
+        .pill.not-bookmarked:hover #pt-icon-path { stroke: var(--accent); }
+        
+        .pill.bookmarked { background: rgba(34, 211, 238, 0.08); border-color: var(--accent); }
         .pill.bookmarked #pt-icon-path { 
           fill: var(--accent); stroke: none; 
-          filter: drop-shadow(0 0 6px var(--accent-glow));
         }
         
         .panel {
           width: 320px; background: var(--bg); border: 1px solid var(--border);
-          border-radius: 12px; padding: 16px; color: var(--text);
+          border-radius: 10px; padding: 14px; color: var(--text);
           box-shadow: 0 14px 34px rgba(0,0,0,0.75); font-size: 13px; line-height: 1.4;
         }
         .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .platform-chip { display: flex; align-items: center; gap: 8px; }
-        .favicon { width: 16px; height: 16px; border-radius: 4px; background: #fff; padding: 2px; }
-        .platform { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--muted); }
+        
+        .platform-icon-wrap {
+          width: 22px; height: 22px; border-radius: var(--radius-sm);
+          display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+        
+        .platform { font-size: 12px; font-weight: 600; color: var(--text-2); }
         
         /* New Action Icons */
-        .action-icons { display: flex; gap: 14px; align-items: center; }
-        .icon-btn { cursor: pointer; color: var(--muted); font-size: 15px; transition: color 0.2s; user-select: none; }
-        .icon-btn:hover { color: var(--text); }
-        .icon-btn.trash:hover { color: #FF3F33; }
+        .action-icons { display: flex; gap: 6px; align-items: center; }
+        .icon-btn { 
+          cursor: pointer; color: var(--text-3); display: flex; align-items: center; justify-content: center;
+          width: 26px; height: 26px; border-radius: var(--radius-sm); transition: all 0.15s;
+        }
+        .icon-btn:hover { color: var(--text); background: var(--surface-2); }
+        .icon-btn.trash:hover { color: var(--red); background: rgba(248, 113, 113, 0.09); }
         
-        .title { font-family: var(--font-display); font-weight: 600; font-size: 15px; margin: 12px 0; color: var(--text); }
+        .title { font-weight: 600; font-size: 14px; margin: 12px 0; color: var(--text); line-height: 1.3; }
         
         .statuses { display: flex; gap: 6px; margin-bottom: 12px; }
         .status-btn {
-          flex: 1; text-align: center; padding: 8px 4px; border-radius: 6px;
-          border: 1px solid var(--border); background: var(--bg-alt); color: var(--muted);
-          font-size: 12px; font-weight: 600; cursor: pointer;
+          flex: 1; text-align: center; padding: 7px 4px; border-radius: var(--radius-sm);
+          border: 1px solid var(--border); background: var(--surface); color: var(--text-3);
+          font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.1s;
         }
-        .status-btn.active[data-status="unsolved"] { background: rgba(74,112,169,0.22); border-color: var(--unsolved); color: var(--text); }
-        .status-btn.active[data-status="solved"] { background: rgba(25, 249, 216, 0.16); border-color: var(--accent); color: var(--accent); }
+        .status-btn:hover { background: var(--surface-2); color: var(--text); }
+        .status-btn.active[data-status="unsolved"] { background: var(--surface-2); border-color: var(--border-2); color: var(--text); }
+        .status-btn.active[data-status="solved"] { background: rgba(16, 185, 129, 0.09); border-color: rgba(16, 185, 129, 0.22); color: var(--green); }
         
         textarea {
-          width: 100%; min-height: 60px; resize: vertical; background: var(--bg-alt);
-          border: 1px solid var(--border); border-radius: 6px; color: var(--text);
-          font-size: 13px; padding: 10px; font-family: var(--font-body);
+          width: 100%; min-height: 60px; resize: vertical; background: var(--surface);
+          border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text);
+          font-size: 13px; padding: 10px; font-family: var(--font); outline: none;
+          transition: border-color 0.12s, background 0.12s;
         }
-        textarea:focus { outline: none; border-color: var(--accent); }
+        textarea:placeholder { color: var(--text-3); }
+        textarea:focus { border-color: rgba(34, 211, 238, 0.22); background: var(--surface-2); }
         .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
-        .saved-tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
-        .open-settings { font-size: 12px; font-weight: 600; color: var(--accent); cursor: pointer; text-decoration: none; }
-        .open-settings:hover { text-decoration: underline; }
+        .saved-tag { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+        .open-settings { font-size: 12px; font-weight: 500; color: var(--accent); cursor: pointer; text-decoration: none; padding: 3px 6px; border-radius: var(--radius-sm); transition: background 0.1s; margin-right: -6px;}
+        .open-settings:hover { background: rgba(34, 211, 238, 0.08); }
       </style>
       <div id="pt-collapsed" class="pill" title="Bookmark this problem">
-        <svg viewBox="0 0 24 24"><path id="pt-icon-path" d="M6 2h12a1 1 0 0 1 1 1v19l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
+        <svg viewBox="0 0 24 24"><path id="pt-icon-path" d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
       <div id="pt-expanded" class="panel" style="display:none;"></div>
     `;
@@ -268,18 +283,53 @@
     }
   });
 
+  const PLATFORM_ICONS = {
+    leetcode: `
+      <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+        <rect width="22" height="22" rx="4" fill="#FFA11614"/>
+        <path d="M8 15.5h6" stroke="#FFA116" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M13.5 6.5 9 11l4.5 4.5" stroke="#FFA116" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>`,
+    codeforces: `
+      <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+        <rect width="22" height="22" rx="4" fill="#1C86EE14"/>
+        <rect x="5"  y="13" width="3" height="5" rx="1" fill="#EE4444"/>
+        <rect x="9.5" y="9"  width="3" height="9" rx="1" fill="#1C86EE"/>
+        <rect x="14" y="5"  width="3" height="13" rx="1" fill="#1C86EE"/>
+      </svg>`,
+    cses: `
+      <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+        <rect width="22" height="22" rx="4" fill="#2DB55D14"/>
+        <path d="M14.5 8a5 5 0 1 0 0 6" stroke="#2DB55D" stroke-width="1.7" stroke-linecap="round" fill="none"/>
+      </svg>`,
+    atcoder: `
+      <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+        <rect width="22" height="22" rx="4" fill="#00A0D614"/>
+        <path d="M11 5.5 16.5 16H5.5L11 5.5Z" stroke="#00A0D6" stroke-width="1.6" stroke-linejoin="round" fill="none"/>
+        <path d="M8.5 13.5h5" stroke="#00A0D6" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>`,
+  };
+
   function renderPanel() {
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(info.url).hostname}&sz=32`;
+    const platformIcon = PLATFORM_ICONS[config.platform] || `
+      <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+        <rect width="22" height="22" rx="4" fill="#1c1d2014"/>
+        <circle cx="11" cy="11" r="4" stroke="#44464f" stroke-width="1.5"/>
+      </svg>`;
 
     panel.innerHTML = `
       <div class="row">
         <div class="platform-chip">
-          <img src="${faviconUrl}" class="favicon" alt="logo" />
+          <div class="platform-icon-wrap">${platformIcon}</div>
           <span class="platform">${config.platformLabel}</span>
         </div>
         <div class="action-icons">
-          <span class="icon-btn trash" id="pt-remove" title="Remove from Tracker">🗑️</span>
-          <span class="icon-btn" id="pt-close" title="Close Panel">✕</span>
+          <span class="icon-btn trash" id="pt-remove" title="Remove from Tracker">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </span>
+          <span class="icon-btn" id="pt-close" title="Close Panel">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </span>
         </div>
       </div>
       <div class="title">${escapeHtml(info.title)}</div>
