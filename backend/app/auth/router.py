@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 
-from app.auth.jwt import create_access_token
+from app.auth.jwt import create_access_token, get_current_user
 from app.config import settings
 from app.db.session import get_db
 from app.db.models import User
@@ -12,30 +12,67 @@ import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+
+@router.post("/register")
+async def register(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Explicitly register a new user account."""
     if not form_data.username or not form_data.password:
-         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    
-    # Auto-register user if they don't exist
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user:
-        user = User(
-            id=uuid.uuid5(uuid.NAMESPACE_DNS, form_data.username),
-            username=form_data.username,
-            hashed_password=bcrypt.hash(form_data.password)
-        )
-        db.add(user)
-        db.commit()
-    else:
-        # Verify password
-        if not bcrypt.verify(form_data.password, user.hashed_password):
-            raise HTTPException(status_code=400, detail="Incorrect username or password")
-            
-    user_id = user.id
-    
+        raise HTTPException(status_code=400, detail="Username and password are required")
+    if len(form_data.username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if len(form_data.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    existing = db.query(User).filter(User.username == form_data.username).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Username already taken")
+
+    user = User(
+        id=uuid.uuid4(),
+        username=form_data.username,
+        hashed_password=bcrypt.hash(form_data.password)
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user_id)}, expires_delta=access_token_expires
+        data={"sub": str(user.id), "username": user.username},
+        expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "username": user.username}
+
+
+@router.post("/token")
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Login with existing credentials."""
+    if not form_data.username or not form_data.password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    if not bcrypt.verify(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id), "username": user.username},
+        expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer", "username": user.username}
+
+
+@router.get("/me")
+async def get_profile(current_user_id: uuid.UUID = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return the currently authenticated user's profile."""
+    user = db.query(User).filter(User.id == current_user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }

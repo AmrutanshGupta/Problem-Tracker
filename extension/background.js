@@ -22,8 +22,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-chrome.alarms.create("syncAlarm", { periodInMinutes: 1 });
-chrome.alarms.create("keepAlive", { periodInMinutes: 14 });
+// Periodic sync every minute, keepalive every 14 min, token validation daily
+chrome.alarms.create("syncAlarm",      { periodInMinutes: 1 });
+chrome.alarms.create("keepAlive",      { periodInMinutes: 14 });
+chrome.alarms.create("tokenCheck",     { periodInMinutes: 60 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "syncAlarm") {
@@ -32,7 +34,44 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "keepAlive") {
         fetch(`${API_BASE_URL}/health`).catch(() => {});
     }
+    if (alarm.name === "tokenCheck") {
+        validateAndRefreshToken();
+    }
 });
+
+/**
+ * Validates the stored token by hitting /auth/me.
+ * If the token is expired (401), clears the session and broadcasts AUTH_EXPIRED
+ * so that any open popup reacts immediately.
+ */
+async function validateAndRefreshToken() {
+    const data = await chrome.storage.local.get(["pt_token"]);
+    if (!data.pt_token) return;
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: { "Authorization": `Bearer ${data.pt_token}` }
+        });
+
+        if (res.status === 401) {
+            // Token is no longer valid — clear session
+            await chrome.storage.local.remove(["pt_token", "pt_username"]);
+            // Notify any open popups
+            chrome.runtime.sendMessage({ type: "AUTH_EXPIRED" }).catch(() => {});
+        }
+        // If successful, optionally refresh cached username
+        if (res.ok) {
+            try {
+                const profile = await res.json();
+                if (profile.username) {
+                    await chrome.storage.local.set({ pt_username: profile.username });
+                }
+            } catch (_) {}
+        }
+    } catch (_) {
+        // Network error — ignore, will retry on next alarm
+    }
+}
 
 async function processSyncQueue() {
     const data = await chrome.storage.local.get(["pt_sync_queue", "pt_token"]);
@@ -41,7 +80,6 @@ async function processSyncQueue() {
     
     if (queue.length === 0 || !token) return;
     
-    // Processing sync queue
     let remainingQueue = [];
     
     for (const req of queue) {
@@ -56,7 +94,7 @@ async function processSyncQueue() {
             });
             if (!res.ok) {
                 if (res.status >= 400 && res.status < 500) {
-                    // Queue item permanently failed
+                    // Queue item permanently failed (bad request) — discard
                 } else {
                     remainingQueue.push(req);
                 }

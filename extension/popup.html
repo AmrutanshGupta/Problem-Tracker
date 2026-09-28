@@ -3,233 +3,625 @@
 <head>
   <meta charset="UTF-8">
   <title>Problem Tracker</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    /* ── Design Tokens ──────────────────────────────────────────────── */
+    :root {
+      --bg:          #080909;
+      --surface:     #0f1011;
+      --surface-2:   #151618;
+      --border:      #1c1d20;
+      --border-2:    #252729;
 
-    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
-    body { width: 360px; min-height: 0; margin: 0; background: #080b12; }
+      --text:        #e9eaec;
+      --text-2:      #80838f;
+      --text-3:      #44464f;
 
-    ::-webkit-scrollbar { width: 4px; }
+      --accent:      #22d3ee;   /* cyan */
+      --accent-dim:  rgba(34, 211, 238, 0.08);
+      --accent-ring: rgba(34, 211, 238, 0.22);
+
+      --green:       #10b981;
+      --green-dim:   rgba(16, 185, 129, 0.09);
+
+      --amber:       #f59e0b;
+      --amber-dim:   rgba(245, 158, 11, 0.09);
+
+      --red:         #f87171;
+      --red-dim:     rgba(248, 113, 113, 0.09);
+
+      --radius:      7px;
+      --radius-sm:   4px;
+      --radius-lg:   10px;
+
+      --font:      'Geist', ui-sans-serif, -apple-system, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', monospace;
+    }
+
+    /* ── Reset ─────────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 360px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a2d40; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
 
-    .gradient-text {
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    /* ── Header ─────────────────────────────────────────────────────── */
+    .popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 15px 12px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .glass {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      backdrop-filter: blur(12px);
+    .brand { display: flex; align-items: center; gap: 9px; }
+
+    .brand-icon {
+      width: 27px;
+      height: 27px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #080909;
     }
+
+    .brand-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-ver {
+      font-size: 10px;
+      color: var(--text-3);
+      font-family: var(--font-mono);
+      margin-top: 1px;
+    }
+
+    .popup-body { padding: 13px 15px 15px; }
+
+    /* ── Status pill ────────────────────────────────────────────────── */
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    /* ── Profile badge ──────────────────────────────────────────────── */
+    .profile-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px 4px 5px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-2);
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+      user-select: none;
+    }
+    .profile-badge:hover {
+      border-color: var(--accent-ring);
+      background: var(--surface-2);
+    }
+
+    .profile-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: #080909;
+      flex-shrink: 0;
+      letter-spacing: 0.02em;
+    }
+
+    .profile-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-2);
+      max-width: 80px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chevron-icon { color: var(--text-3); display: flex; align-items: center; }
+
+    /* ── Popover ────────────────────────────────────────────────────── */
+    .signout-popover {
+      display: none;
+      position: absolute;
+      top: calc(100% + 5px);
+      right: 0;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 4px;
+      min-width: 152px;
+      z-index: 200;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+    .signout-popover.open { display: block; }
+
+    .signout-confirm-row { display: none; flex-direction: column; gap: 2px; }
+    .signout-confirm-row.show { display: flex; }
+
+    .confirm-label {
+      padding: 6px 10px 3px;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .popover-btn {
+      width: 100%;
+      padding: 6px 10px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+      text-align: left;
+      background: transparent;
+      color: var(--text-2);
+    }
+    .popover-btn:hover { background: var(--surface); color: var(--text); }
+    .popover-btn.danger { color: var(--red); }
+    .popover-btn.danger:hover { background: var(--red-dim); }
+
+    /* ── Auth section ───────────────────────────────────────────────── */
+    .auth-header {
+      padding: 6px 0 16px;
+      text-align: center;
+    }
+
+    .auth-logo-wrap {
+      width: 38px;
+      height: 38px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-ring);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 11px;
+      color: var(--accent);
+    }
+
+    .auth-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .auth-sub { font-size: 12px; color: var(--text-3); }
+
+    /* ── Tabs ───────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3px;
+      margin-bottom: 11px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 6px 0;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+      background: transparent;
+      color: var(--text-3);
+    }
+    .tab-btn.active {
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      color: var(--text);
+    }
+
+    /* ── Input ──────────────────────────────────────────────────────── */
+    .input-field {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 12px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .input-field::placeholder { color: var(--text-3); }
+    .input-field:focus {
+      border-color: var(--accent-ring);
+      background: var(--surface-2);
+    }
+    .input-field.error { border-color: var(--red); background: var(--red-dim); }
+
+    .error-msg { font-size: 11px; color: var(--red); min-height: 15px; padding: 0 2px; }
+    .auth-hint { font-size: 11px; color: var(--text-3); text-align: center; }
+
+    /* ── Primary button ─────────────────────────────────────────────── */
+    .primary-btn {
+      width: 100%;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px;
+      color: #080909;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: opacity 0.12s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .primary-btn:hover:not(:disabled) { opacity: 0.85; }
+    .primary-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Stats ──────────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 11px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 11px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-3);
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--text);
+      font-family: var(--font-mono);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    /* ── Action buttons ─────────────────────────────────────────────── */
+    .form-stack { display: flex; flex-direction: column; gap: 6px; }
 
     .action-btn {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px;
-      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 11px;
       display: flex;
       align-items: center;
       gap: 10px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      color: #e2e8f0;
-      font-size: 13px;
-      font-weight: 500;
+      transition: border-color 0.12s, background 0.12s;
+      color: var(--text);
+      font-family: var(--font);
       width: 100%;
+      text-align: left;
     }
-    .action-btn:hover {
-      background: rgba(96,165,250,0.12);
-      border-color: rgba(96,165,250,0.3);
-      transform: translateY(-1px);
+    .action-btn:hover { border-color: var(--border-2); background: var(--surface-2); }
+    .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .action-btn.success {
+      border-color: rgba(16, 185, 129, 0.35);
+      background: var(--green-dim);
     }
-    .action-btn .icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;
+
+    .btn-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
       flex-shrink: 0;
+      color: var(--text-3);
+      transition: color 0.12s;
+    }
+    .action-btn:hover .btn-icon { color: var(--text-2); }
+    .action-btn.success .btn-icon {
+      background: var(--green-dim);
+      border-color: rgba(16, 185, 129, 0.28);
+      color: var(--green);
     }
 
-    .stat-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-      padding: 10px 14px;
-      flex: 1;
-    }
+    .btn-title { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.25; }
+    .btn-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
 
-    .review-item {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-      padding: 10px 12px;
-    }
-    .review-item strong {
+    /* ── Text link ──────────────────────────────────────────────────── */
+    .text-link {
+      background: none;
+      border: none;
+      color: var(--accent);
       font-size: 12px;
-      color: #cbd5e1;
+      font-family: var(--font);
+      font-weight: 500;
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: var(--radius-sm);
+      transition: background 0.1s;
+      opacity: 0.85;
+    }
+    .text-link:hover { background: var(--accent-dim); opacity: 1; }
+
+    /* ── Section heading ────────────────────────────────────────────── */
+    .section-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+    .section-bar { width: 2px; height: 11px; background: var(--red); border-radius: 2px; opacity: 0.6; flex-shrink: 0; }
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-3);
+    }
+
+    /* ── Review items ───────────────────────────────────────────────── */
+    .review-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 10px;
+    }
+
+    .review-id {
+      font-size: 12px;
+      color: var(--text-2);
       font-weight: 500;
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 7px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .review-actions { display: flex; gap: 6px; }
+
+    .review-actions { display: flex; gap: 5px; }
+
     .review-actions button {
       flex: 1;
       padding: 4px 0;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 11px;
       font-weight: 600;
-      border: none;
+      font-family: var(--font);
+      border: 1px solid transparent;
       cursor: pointer;
-      transition: all 0.15s;
-    }
-    .review-actions button[data-q="1"] { background: rgba(239,68,68,0.15); color: #f87171; }
-    .review-actions button[data-q="1"]:hover { background: rgba(239,68,68,0.3); }
-    .review-actions button[data-q="3"] { background: rgba(234,179,8,0.15); color: #fbbf24; }
-    .review-actions button[data-q="3"]:hover { background: rgba(234,179,8,0.3); }
-    .review-actions button[data-q="5"] { background: rgba(34,197,94,0.15); color: #4ade80; }
-    .review-actions button[data-q="5"]:hover { background: rgba(34,197,94,0.3); }
-
-    .input-field {
-      width: 100%;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      padding: 10px 14px;
-      color: #e2e8f0;
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    .input-field::placeholder { color: #475569; }
-    .input-field:focus { border-color: rgba(96,165,250,0.5); background: rgba(96,165,250,0.05); }
-
-    .login-btn {
-      width: 100%;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
-      border: none;
-      border-radius: 10px;
-      padding: 11px;
-      color: white;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      box-shadow: 0 0 20px rgba(37,99,235,0.3);
-    }
-    .login-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 24px rgba(37,99,235,0.4);
+      transition: all 0.1s;
     }
 
-    .pulse-dot {
-      width: 6px;
-      height: 6px;
-      background: #4ade80;
-      border-radius: 50%;
-      animation: pulse 2s infinite;
+    .review-actions button[data-q="1"] { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.18); }
+    .review-actions button[data-q="1"]:hover { background: rgba(248,113,113,0.16); }
+    .review-actions button[data-q="3"] { background: var(--amber-dim); color: var(--amber); border-color: rgba(245,158,11,0.18); }
+    .review-actions button[data-q="3"]:hover { background: rgba(245,158,11,0.16); }
+    .review-actions button[data-q="5"] { background: var(--green-dim); color: var(--green); border-color: rgba(16,185,129,0.18); }
+    .review-actions button[data-q="5"]:hover { background: rgba(16,185,129,0.16); }
+
+    /* ── Toast ──────────────────────────────────────────────────────── */
+    #toast-container {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      align-items: center;
+      z-index: 9999;
+      pointer-events: none;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      white-space: nowrap;
+      animation: toastIn 0.18s ease, toastOut 0.22s ease 2.3s forwards;
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     }
+
+    .toast-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .toast.success .toast-dot { background: var(--green); }
+    .toast.error   .toast-dot { background: var(--red); }
+    .toast.info    .toast-dot { background: var(--accent); }
+
+    @keyframes toastIn  { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(7px); } }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <div style="padding: 16px 16px 0;">
-    <header style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;">
-          <svg viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M6 3v18l6-4 6 4V3H6z"/></svg>
-        </div>
-        <div>
-          <div class="gradient-text" style="font-size:14px;font-weight:700;line-height:1;">Problem Tracker</div>
-          <div style="font-size:10px;color:#475569;margin-top:1px;">v2.0</div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <div class="pulse-dot"></div>
-        <span style="font-size:10px;color:#4ade80;font-weight:500;">Live</span>
-      </div>
-    </header>
-  </div>
+  <div id="toast-container"></div>
 
-  <div style="padding: 0 16px 16px;">
-
-    <!-- Login Section -->
-    <div id="login-section" class="hidden" style="display:none;">
-      <div style="text-align:center; padding: 8px 0 20px;">
-        <div style="font-size:28px; margin-bottom:8px;">🧠</div>
-        <div style="font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:4px;">Welcome back</div>
-        <div style="font-size:12px;color:#475569;">Sign in to sync your progress</div>
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header class="popup-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" width="13" height="13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+        </svg>
       </div>
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <input type="text" id="username" placeholder="Username" class="input-field" />
-        <input type="password" id="password" placeholder="Password" class="input-field" />
-        <button id="login-btn" class="login-btn">Login / Register</button>
-        <div style="font-size:11px;color:#334155;text-align:center;">New user? Just type a username & password to register.</div>
+      <div>
+        <div class="brand-name">Problem Tracker</div>
+        <div class="brand-ver">v2.0</div>
       </div>
     </div>
 
-    <!-- Main Section -->
+    <!-- Logged-out -->
+    <div id="header-live" class="status-pill">
+      <div class="status-dot"></div>
+      <span>Live</span>
+    </div>
+
+    <!-- Logged-in -->
+    <div id="header-profile" style="display:none; position:relative;">
+      <div class="profile-badge" id="profile-badge-btn">
+        <div class="profile-avatar" id="avatar-initials">?</div>
+        <span class="profile-name" id="profile-username">—</span>
+        <span class="chevron-icon">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </span>
+      </div>
+
+      <div class="signout-popover" id="signout-popover">
+        <div id="popover-default">
+          <button class="popover-btn danger" id="signout-initial-btn">Sign out</button>
+        </div>
+        <div class="signout-confirm-row" id="popover-confirm">
+          <span class="confirm-label">Sign out of your account?</span>
+          <button class="popover-btn danger" id="signout-confirm-btn">Yes, sign out</button>
+          <button class="popover-btn" id="signout-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Body ────────────────────────────────────────────────────────── -->
+  <div class="popup-body">
+
+    <!-- Auth -->
+    <div id="auth-section" style="display:none;">
+      <div class="auth-header">
+        <div class="auth-logo-wrap">
+          <svg viewBox="0 0 24 24" fill="none" width="17" height="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div class="auth-title">Welcome back</div>
+        <div class="auth-sub">Sign in to sync your progress</div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-login">Sign In</button>
+        <button class="tab-btn" id="tab-register">Create Account</button>
+      </div>
+
+      <div class="form-stack">
+        <input type="text"     id="auth-username"  placeholder="Username"         class="input-field" autocomplete="username" />
+        <input type="password" id="auth-password"  placeholder="Password"         class="input-field" autocomplete="current-password" />
+        <input type="password" id="auth-password2" placeholder="Confirm password" class="input-field" style="display:none;" autocomplete="new-password" />
+        <div class="error-msg" id="auth-error"></div>
+        <button id="auth-submit-btn" class="primary-btn">
+          <span id="auth-btn-text">Sign In</span>
+        </button>
+        <div class="auth-hint" id="auth-hint">Don't have an account? Switch to Create Account.</div>
+      </div>
+    </div>
+
+    <!-- Main -->
     <div id="main-section" style="display:none;">
-      <!-- Stats Row -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <div class="stats-row">
         <div class="stat-card">
-          <div style="font-size:10px;color:#60a5fa;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Reviews Done</div>
-          <div id="today-reviews" style="font-size:20px;font-weight:700;color:#f8fafc;font-variant-numeric:tabular-nums;">0</div>
+          <div class="stat-label">Reviews</div>
+          <div class="stat-value" id="today-reviews">—</div>
         </div>
         <div class="stat-card">
-          <div style="font-size:10px;color:#a78bfa;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Bookmarks</div>
-          <div id="today-bookmarks" style="font-size:20px;font-weight:700;color:#f8fafc;font-variant-numeric:tabular-nums;">0</div>
+          <div class="stat-label">Bookmarks</div>
+          <div class="stat-value" id="today-bookmarks">—</div>
         </div>
-        <div class="stat-card" style="text-align:center;">
-          <div style="font-size:10px;color:#f87171;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Due</div>
-          <div id="due-count" style="font-size:20px;font-weight:700;color:#f8fafc;font-variant-numeric:tabular-nums;">0</div>
+        <div class="stat-card">
+          <div class="stat-label">Due</div>
+          <div class="stat-value" id="due-count">—</div>
         </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+      <div class="form-stack" style="margin-bottom:10px;">
         <button id="bookmark-btn" class="action-btn">
-          <div class="icon" style="background:rgba(96,165,250,0.15);">🔖</div>
+          <div class="btn-icon" id="bookmark-icon">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
           <div>
-            <div style="font-weight:600;font-size:13px;">Bookmark This Problem</div>
-            <div style="font-size:11px;color:#475569;margin-top:1px;">Save & sync to your account</div>
+            <div class="btn-title" id="bookmark-label">Bookmark this problem</div>
+            <div class="btn-sub">Save &amp; sync to your account</div>
           </div>
         </button>
+
         <button id="revisit-btn" class="action-btn">
-          <div class="icon" style="background:rgba(167,139,250,0.15);">🔁</div>
+          <div class="btn-icon">
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </div>
           <div>
-            <div style="font-weight:600;font-size:13px;">Schedule for Review</div>
-            <div style="font-size:11px;color:#475569;margin-top:1px;">SM-2 spaced repetition</div>
+            <div class="btn-title">Schedule for review</div>
+            <div class="btn-sub">SM-2 spaced repetition</div>
           </div>
         </button>
       </div>
 
-      <!-- View All -->
-      <div style="text-align:center;margin-bottom:16px;">
-        <button id="view-all-btn" style="background:none;border:none;color:#60a5fa;font-size:12px;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 0.2s;" onmouseover="this.style.background='rgba(96,165,250,0.1)'" onmouseout="this.style.background='none'">View all bookmarks →</button>
+      <div style="text-align:center; margin-bottom:13px;">
+        <button id="view-all-btn" class="text-link">View all bookmarks →</button>
       </div>
 
-      <!-- Due for Review -->
       <div id="review-section" style="display:none;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-          <div style="width:3px;height:14px;background:linear-gradient(135deg,#f87171,#fb923c);border-radius:2px;"></div>
-          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Due for Review</span>
+        <div class="section-heading">
+          <div class="section-bar"></div>
+          <span class="section-label">Due for review</span>
         </div>
-        <ul id="review-list" style="display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0;max-height:180px;overflow-y:auto;"></ul>
+        <ul id="review-list" style="display:flex;flex-direction:column;gap:5px;list-style:none;max-height:172px;overflow-y:auto;"></ul>
       </div>
     </div>
 

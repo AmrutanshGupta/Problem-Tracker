@@ -1,57 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Problem Tracker</title>
-<link rel="stylesheet" href="options.css" />
+  <meta charset="UTF-8" />
+  <title>Problem Tracker — My Bookmarks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="options.css" />
 </head>
 <body>
   <div class="wrap">
-    <header>
+
+    <!-- ── Header ──────────────────────────────────────────────────── -->
+    <header class="page-header">
       <div class="brand">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" width="22" height="22">
-          <path d="M6 3v18l6-4 6 4V3H6z"/>
-        </svg>
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" width="13" height="13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
         <h1>Problem Tracker</h1>
       </div>
-      <div class="stats" id="stats"></div>
+
+      <div class="header-right">
+        <div class="stats" id="stats"></div>
+        <div class="user-chip" id="user-chip" style="display:none;">
+          <div class="avatar" id="options-avatar">?</div>
+          <span class="name" id="options-username">—</span>
+        </div>
+      </div>
     </header>
 
-    <div class="controls">
-      <input type="text" id="search" placeholder="Search by title..." />
-      <select id="platform-filter">
-        <option value="all">All platforms</option>
-        <option value="leetcode">LeetCode</option>
-        <option value="codeforces">Codeforces</option>
-        <option value="cses">CSES</option>
-        <option value="atcoder">AtCoder</option>
-      </select>
-      <select id="status-filter">
-        <option value="all">All statuses</option>
-        <option value="unsolved">Unsolved</option>
-        <option value="solved">Solved</option>
-      </select>
+    <!-- ── Auth guard ───────────────────────────────────────────────── -->
+    <div id="auth-guard" style="display:none;">
+      <div class="auth-guard-wrap">
+        <div class="auth-guard-icon">
+          <svg viewBox="0 0 24 24" fill="none" width="20" height="20" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <div class="auth-guard-title">Sign in to view bookmarks</div>
+        <div class="auth-guard-sub">
+          Your bookmarks are synced to your account.<br>
+          Open the extension popup to sign in.
+        </div>
+        <button class="auth-guard-btn" id="open-popup-btn">Open Problem Tracker</button>
+      </div>
     </div>
 
-    <div id="empty-state" class="empty-state" style="display:none;">
-      <p>Nothing tracked yet.</p>
-      <p class="sub">Open a problem on LeetCode, Codeforces, CSES, or AtCoder — a small tab appears bottom-right to bookmark it.</p>
+    <!-- ── Main content ─────────────────────────────────────────────── -->
+    <div id="main-content" style="display:none;">
+      <div class="controls">
+        <input type="text" id="search" placeholder="Search problems…" />
+        <select id="platform-filter">
+          <option value="all">All platforms</option>
+          <option value="leetcode">LeetCode</option>
+          <option value="codeforces">Codeforces</option>
+          <option value="cses">CSES</option>
+          <option value="atcoder">AtCoder</option>
+        </select>
+        <select id="status-filter">
+          <option value="all">All statuses</option>
+          <option value="unsolved">Unsolved</option>
+          <option value="solved">Solved</option>
+        </select>
+      </div>
+
+      <div id="empty-state" class="empty-state" style="display:none;">
+        <p>No bookmarks yet.</p>
+        <p class="sub">
+          Open a problem on LeetCode, Codeforces, CSES, or AtCoder<br>
+          and use the extension to bookmark it.
+        </p>
+      </div>
+
+      <table id="table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Platform</th>
+            <th>Problem</th>
+            <th>Time</th>
+            <th>Notes</th>
+            <th>Added</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
     </div>
 
-    <table id="table">
-      <thead>
-        <tr>
-          <th>Status</th>
-          <th>Platform</th>
-          <th>Problem</th>
-          <th>Time</th>
-          <th>Notes</th>
-          <th>Added</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
   </div>
 
   <script src="../storage.js"></script>
