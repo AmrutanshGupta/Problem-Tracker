@@ -22,8 +22,8 @@ const authSection   = document.getElementById('auth-section');
 const mainSection   = document.getElementById('main-section');
 const reviewSection = document.getElementById('review-section');
 
-const headerLive    = document.getElementById('header-live');
-const headerProfile = document.getElementById('header-profile');
+const headerLive      = document.getElementById('header-live');
+const headerProfile   = document.getElementById('header-profile');
 const avatarInitials  = document.getElementById('avatar-initials');
 const profileUsername = document.getElementById('profile-username');
 
@@ -38,22 +38,23 @@ const authSubmitBtn = document.getElementById('auth-submit-btn');
 const authBtnText   = document.getElementById('auth-btn-text');
 const authHint      = document.getElementById('auth-hint');
 
-// ─── Auth mode toggle (Login / Register) ────────────────────────────────────
+const bookmarkBtn   = document.getElementById('bookmark-btn');
+const bookmarkIcon  = document.getElementById('bookmark-icon');
+const bookmarkLabel = document.getElementById('bookmark-label');
+
+// ─── Auth mode toggle ─────────────────────────────────────────────────────────
 
 let currentAuthMode = 'login';
 
 function setAuthMode(mode) {
   currentAuthMode = mode;
-
   tabLogin.classList.toggle('active', mode === 'login');
   tabRegister.classList.toggle('active', mode === 'register');
-
   authPassword2.style.display = mode === 'register' ? 'block' : 'none';
   authBtnText.textContent = mode === 'login' ? 'Sign In' : 'Create Account';
   authHint.textContent = mode === 'login'
-    ? "Don't have an account? Switch to "Create Account" above."
-    : 'Already have an account? Switch to "Sign In" above.';
-
+    ? "Don't have an account? Switch to Create Account."
+    : 'Already have an account? Switch to Sign In.';
   clearAuthError();
   authUsername.classList.remove('error');
   authPassword.classList.remove('error');
@@ -65,48 +66,24 @@ tabRegister.addEventListener('click', () => setAuthMode('register'));
 
 // ─── Auth error helpers ───────────────────────────────────────────────────────
 
-function showAuthError(msg) {
-  authError.textContent = msg;
-}
-function clearAuthError() {
-  authError.textContent = '';
-}
+function showAuthError(msg) { authError.textContent = msg; }
+function clearAuthError()   { authError.textContent = ''; }
 
 // ─── Auth submit ─────────────────────────────────────────────────────────────
 
 authSubmitBtn.addEventListener('click', async () => {
   clearAuthError();
-  const username = authUsername.value.trim();
-  const password = authPassword.value;
+  const username  = authUsername.value.trim();
+  const password  = authPassword.value;
   const password2 = authPassword2.value;
 
-  // Basic client-side validation
-  if (!username) {
-    showAuthError('Please enter a username.');
-    authUsername.classList.add('error');
-    return;
-  }
-  if (!password) {
-    showAuthError('Please enter a password.');
-    authPassword.classList.add('error');
-    return;
-  }
+  if (!username) { showAuthError('Please enter a username.'); authUsername.classList.add('error'); return; }
+  if (!password) { showAuthError('Please enter a password.'); authPassword.classList.add('error'); return; }
+
   if (currentAuthMode === 'register') {
-    if (username.length < 3) {
-      showAuthError('Username must be at least 3 characters.');
-      authUsername.classList.add('error');
-      return;
-    }
-    if (password.length < 6) {
-      showAuthError('Password must be at least 6 characters.');
-      authPassword.classList.add('error');
-      return;
-    }
-    if (password !== password2) {
-      showAuthError('Passwords do not match.');
-      authPassword2.classList.add('error');
-      return;
-    }
+    if (username.length < 3) { showAuthError('Username must be at least 3 characters.'); authUsername.classList.add('error'); return; }
+    if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); authPassword.classList.add('error'); return; }
+    if (password !== password2) { showAuthError('Passwords do not match.'); authPassword2.classList.add('error'); return; }
   }
 
   authSubmitBtn.disabled = true;
@@ -116,7 +93,6 @@ authSubmitBtn.addEventListener('click', async () => {
     const data = currentAuthMode === 'login'
       ? await api.login(username, password)
       : await api.register(username, password);
-
     showToast(`Welcome, ${data.username}`, 'success');
     showMainUI(data.username);
   } catch (err) {
@@ -129,15 +105,10 @@ authSubmitBtn.addEventListener('click', async () => {
   }
 });
 
-// Press Enter to submit
+// Enter key support
 [authUsername, authPassword, authPassword2].forEach(el => {
-  el.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') authSubmitBtn.click();
-  });
-  el.addEventListener('input', () => {
-    el.classList.remove('error');
-    clearAuthError();
-  });
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') authSubmitBtn.click(); });
+  el.addEventListener('input',   () => { el.classList.remove('error'); clearAuthError(); });
 });
 
 // ─── Profile badge + sign-out popover ────────────────────────────────────────
@@ -150,7 +121,7 @@ const signoutInitialBtn = document.getElementById('signout-initial-btn');
 const signoutConfirmBtn = document.getElementById('signout-confirm-btn');
 const signoutCancelBtn  = document.getElementById('signout-cancel-btn');
 
-profileBadgeBtn.addEventListener('click', (e) => {
+profileBadgeBtn.addEventListener('click', e => {
   e.stopPropagation();
   const isOpen = signoutPopover.classList.contains('open');
   resetPopoverState();
@@ -177,7 +148,7 @@ signoutCancelBtn.addEventListener('click', () => {
 signoutConfirmBtn.addEventListener('click', async () => {
   await api.logout();
   signoutPopover.classList.remove('open');
-  showToast('Signed out successfully.', 'info');
+  showToast('Signed out.', 'info');
   showAuthUI();
 });
 
@@ -186,47 +157,83 @@ function resetPopoverState() {
   popoverConfirm.classList.remove('show');
 }
 
-// ─── Display helpers ─────────────────────────────────────────────────────────
+// ─── Action buttons ───────────────────────────────────────────────────────────
+
+document.getElementById('view-all-btn').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
+});
+
+bookmarkBtn.addEventListener('click', async () => {
+  const details = await getCurrentProblemDetails();
+  bookmarkBtn.disabled = true;
+  try {
+    await api.bookmark(details.problem_id, details.platform, details.title, details.url);
+    bookmarkBtn.classList.add('success');
+    bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    bookmarkLabel.textContent = 'Bookmarked';
+    showToast('Problem bookmarked', 'success');
+    await loadActivity();
+    setTimeout(() => {
+      bookmarkBtn.classList.remove('success');
+      bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+      bookmarkLabel.textContent = 'Bookmark this problem';
+      bookmarkBtn.disabled = false;
+    }, 2000);
+  } catch (e) {
+    bookmarkBtn.disabled = false;
+    showToast(e.message || 'Failed to bookmark.', 'error');
+  }
+});
+
+document.getElementById('revisit-btn').addEventListener('click', async () => {
+  const details = await getCurrentProblemDetails();
+  try {
+    await api.scheduleReview(details.problem_id);
+    showToast('Scheduled for review', 'success');
+    loadReviews();
+  } catch (e) {
+    showToast(e.message || 'Failed to schedule review.', 'error');
+  }
+});
+
+// ─── Display helpers ──────────────────────────────────────────────────────────
 
 function showAuthUI() {
-  authSection.style.display = 'block';
-  mainSection.style.display = 'none';
-  headerLive.style.display = 'flex';
+  authSection.style.display   = 'block';
+  mainSection.style.display   = 'none';
+  headerLive.style.display    = 'flex';
   headerProfile.style.display = 'none';
   setAuthMode('login');
-  // Clear fields
-  authUsername.value = '';
-  authPassword.value = '';
+  authUsername.value  = '';
+  authPassword.value  = '';
   authPassword2.value = '';
 }
 
 function showMainUI(username) {
-  authSection.style.display = 'none';
-  mainSection.style.display = 'block';
-  headerLive.style.display = 'none';
+  authSection.style.display   = 'none';
+  mainSection.style.display   = 'block';
+  headerLive.style.display    = 'none';
   headerProfile.style.display = 'block';
-
-  // Set profile avatar initials
   const initials = username ? username.slice(0, 2).toUpperCase() : '?';
-  avatarInitials.textContent = initials;
+  avatarInitials.textContent  = initials;
   profileUsername.textContent = username || '—';
-
   loadActivity();
   loadReviews();
 }
 
-// ─── Listen for session expiry from background ────────────────────────────────
+// ─── Session expiry from background ──────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener(message => {
   if (message && message.type === 'AUTH_EXPIRED') {
     showToast('Session expired. Please sign in again.', 'error');
     showAuthUI();
   }
 });
 
-// ─── Startup: check token ─────────────────────────────────────────────────────
+// ─── Startup — runs immediately because type="module" is already deferred ─────
+// DO NOT wrap in DOMContentLoaded — the DOM is ready by the time a module runs.
 
-document.addEventListener('DOMContentLoaded', async () => {
+(async () => {
   const data = await chrome.storage.local.get(['pt_token', 'pt_username']);
 
   if (!data.pt_token) {
@@ -234,10 +241,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Validate the token is still alive
   try {
     const profile = await api.me();
-    // Refresh username in storage in case it changed
     await chrome.storage.local.set({ pt_username: profile.username });
     showMainUI(profile.username);
   } catch (err) {
@@ -246,68 +251,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     showAuthUI();
   }
+})();
 
-  // ─── Action Buttons ─────────────────────────────────────────────────────────
-
-  document.getElementById('view-all-btn')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
-  });
-
-  // ─── Bookmark ─────────────────────────────────────────────────────────────
-
-  const bookmarkBtn   = document.getElementById('bookmark-btn');
-  const bookmarkIcon  = document.getElementById('bookmark-icon');
-  const bookmarkLabel = document.getElementById('bookmark-label');
-
-  bookmarkBtn.addEventListener('click', async () => {
-    const details = await getCurrentProblemDetails();
-    bookmarkBtn.disabled = true;
-    try {
-      await api.bookmark(details.problem_id, details.platform, details.title, details.url);
-
-      // Visual success feedback
-      bookmarkBtn.classList.add('success');
-      bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="15" height="15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-      bookmarkLabel.textContent = 'Bookmarked';
-      showToast('Problem bookmarked', 'success');
-
-      await loadActivity();
-
-      setTimeout(() => {
-        bookmarkBtn.classList.remove('success');
-        bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="15" height="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
-        bookmarkLabel.textContent = 'Bookmark this problem';
-        bookmarkBtn.disabled = false;
-      }, 2000);
-    } catch (e) {
-      bookmarkBtn.disabled = false;
-      showToast(e.message || 'Failed to bookmark.', 'error');
-    }
-  });
-
-  // ─── Revisit ──────────────────────────────────────────────────────────────
-
-  document.getElementById('revisit-btn').addEventListener('click', async () => {
-    const details = await getCurrentProblemDetails();
-    try {
-      await api.scheduleReview(details.problem_id);
-      showToast('Scheduled for review', 'success');
-      loadReviews();
-    } catch (e) {
-      showToast(e.message || 'Failed to schedule review.', 'error');
-    }
-  });
-});
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function getCurrentProblemDetails() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return {
     problem_id: tab.url.split('/').pop() || 'unknown',
-    platform: new URL(tab.url).hostname,
-    title: tab.title,
-    url: tab.url
+    platform:   new URL(tab.url).hostname,
+    title:      tab.title,
+    url:        tab.url
   };
 }
 
@@ -316,8 +270,8 @@ async function loadActivity() {
     const activity = await api.getActivity();
     if (activity && activity.length > 0) {
       const today = activity[0];
-      document.getElementById('today-reviews').innerText = today.reviews_completed || 0;
-      document.getElementById('today-bookmarks').innerText = today.bookmarks_added || 0;
+      document.getElementById('today-reviews').textContent   = today.reviews_completed || 0;
+      document.getElementById('today-bookmarks').textContent = today.bookmarks_added   || 0;
     }
   } catch (e) {
     console.error('Failed to load activity', e);
@@ -326,22 +280,18 @@ async function loadActivity() {
 
 async function loadReviews() {
   try {
-    const due = await api.getDueReviews();
-    document.getElementById('due-count').innerText = due.length;
+    const due  = await api.getDueReviews();
+    document.getElementById('due-count').textContent = due.length;
     const list = document.getElementById('review-list');
     list.innerHTML = '';
 
-    if (due.length > 0) {
-      reviewSection.style.display = 'block';
-    } else {
-      reviewSection.style.display = 'none';
-    }
+    reviewSection.style.display = due.length > 0 ? 'block' : 'none';
 
     due.forEach(item => {
       const li = document.createElement('li');
       li.className = 'review-item';
       li.innerHTML = `
-        <strong>${item.problem_id}</strong>
+        <span class="review-id">${item.problem_id}</span>
         <div class="review-actions">
           <button data-q="1" data-id="${item.problem_id}">Hard</button>
           <button data-q="3" data-id="${item.problem_id}">Good</button>
@@ -352,9 +302,9 @@ async function loadReviews() {
     });
 
     list.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', async e => {
         const id = e.target.getAttribute('data-id');
-        const q = parseInt(e.target.getAttribute('data-q'));
+        const q  = parseInt(e.target.getAttribute('data-q'));
         try {
           await api.completeReview(id, q);
           showToast('Review recorded', 'success');
