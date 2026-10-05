@@ -170,14 +170,38 @@ bookmarkBtn.addEventListener('click', async () => {
     const stored = await chrome.storage.local.get(["pt_problems"]);
     const record = (stored.pt_problems || {})[details.problem_id] || {};
 
-    await api.bookmark(
-      details.problem_id, 
-      details.platform, 
-      details.title, 
-      details.url,
-      record.status || "unsolved",
-      record.notes || ""
-    );
+    const allProblems = stored.pt_problems || {};
+    const updatedRecord = {
+      ...record,
+      id: details.problem_id,
+      platform: details.platform,
+      title: details.title,
+      url: details.url,
+      status: record.status || "unsolved",
+      notes: record.notes || "",
+      bookmarked: true,
+      addedAt: record.addedAt || new Date().toISOString()
+    };
+    allProblems[details.problem_id] = updatedRecord;
+    await chrome.storage.local.set({ pt_problems: allProblems });
+
+    const res = await new Promise(resolve => {
+      chrome.runtime.sendMessage({
+        action: "BOOKMARK_UPSERT",
+        payload: {
+          problem_id: details.problem_id, 
+          platform: details.platform, 
+          title: details.title, 
+          url: details.url,
+          status: updatedRecord.status,
+          notes: updatedRecord.notes
+        }
+      }, resolve);
+    });
+
+    if (res && !res.ok && !res.queued) {
+      throw new Error(res.error || "Failed to bookmark");
+    }
     bookmarkBtn.classList.add('success');
     bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
     bookmarkLabel.textContent = 'Bookmarked';

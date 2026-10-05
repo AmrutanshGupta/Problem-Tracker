@@ -104,7 +104,7 @@ async function validateAndRefreshToken() {
 }
 
 async function handleBookmarkUpsert(payload) {
-    const data = await chrome.storage.local.get(["pt_token"]);
+    const data = await chrome.storage.local.get(["pt_token", "pt_problems"]);
     const token = data.pt_token;
     if (!token) return { ok: false, error: "not_logged_in" };
 
@@ -118,6 +118,15 @@ async function handleBookmarkUpsert(payload) {
             body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        // Mark this bookmark as confirmed on the server so the sync logic
+        // can distinguish it from a locally-created-but-not-yet-uploaded bookmark.
+        const local = data.pt_problems || {};
+        if (local[payload.problem_id]) {
+            local[payload.problem_id].syncedToServer = true;
+            await chrome.storage.local.set({ pt_problems: local });
+        }
+
         return { ok: true };
     } catch (e) {
         // Server down — enqueue for later sync (deduplication by problem_id)
@@ -197,17 +206,22 @@ async function loadBookmarksFromServer() {
         if (!res.ok) return { ok: false };
         const serverBookmarks = await res.json();
 
-        // Merge: convert server list into the pt_problems map format
+        // ── 3-way merge using syncedToServer flag ─────────────────────────
+        // syncedToServer = true  → was confirmed uploaded; if now missing from
+        //                          server it was deleted remotely → delete locally.
+        // syncedToServer = false/missing → created locally but not yet confirmed
+        //                          on server → upload it (legacy + offline-created).
+        // ──────────────────────────────────────────────────────────────────────
         const stored = await chrome.storage.local.get(["pt_problems"]);
         const local = stored.pt_problems || {};
 
         const serverMap = new Set(serverBookmarks.map(b => b.problem_id));
 
-        // 1. Sync DOWN (from server to local)
+        // 1. Sync DOWN: add/update everything the server knows about
         for (const bm of serverBookmarks) {
             const existing = local[bm.problem_id] || {};
             local[bm.problem_id] = {
-                ...existing,            // keep local fields like notes, timeSpent
+                ...existing,
                 id: bm.problem_id,
                 platform: bm.platform,
                 title: bm.title,
@@ -215,15 +229,16 @@ async function loadBookmarksFromServer() {
                 status: bm.status || existing.status || "unsolved",
                 notes: bm.notes !== null ? bm.notes : (existing.notes || ""),
                 bookmarked: true,
+                syncedToServer: true,   // confirmed on server
                 addedAt: existing.addedAt || bm.created_at || null,
             };
         }
 
-        // 2. Sync UP (from local to server) for legacy bookmarks
-        // This ensures the 33 bookmarks you saved before this update get pushed to the cloud
+        // 2. Sync UP: local bookmarks not on server yet (legacy / created offline)
+        //    Only upload if they were never confirmed on the server.
         for (const [id, bm] of Object.entries(local)) {
-            if (bm.bookmarked && !serverMap.has(id)) {
-                // Enqueue them to be uploaded in the background
+            if (bm.bookmarked && !serverMap.has(id) && !bm.syncedToServer) {
+                // Fire-and-forget; handleBookmarkUpsert will mark syncedToServer=true on success
                 handleBookmarkUpsert({
                     problem_id: bm.id,
                     platform: bm.platform,
@@ -232,6 +247,14 @@ async function loadBookmarksFromServer() {
                     status: bm.status || "unsolved",
                     notes: bm.notes || ""
                 });
+            }
+        }
+
+        // 3. Propagate remote deletions: if a bookmark WAS confirmed on the server
+        //    (syncedToServer=true) but is now missing, another browser deleted it.
+        for (const id of Object.keys(local)) {
+            if (local[id].bookmarked && local[id].syncedToServer && !serverMap.has(id)) {
+                delete local[id];
             }
         }
 
@@ -266,6 +289,16 @@ async function processSyncQueue() {
                     // Queue item permanently failed (bad request) — discard
                 } else {
                     remainingQueue.push(req);
+                }
+            } else {
+                // On successful POST /bookmarks replay, mark as syncedToServer
+                if (req.method === "POST" && req.path === "/bookmarks" && req.body?.problem_id) {
+                    const stored = await chrome.storage.local.get(["pt_problems"]);
+                    const local = stored.pt_problems || {};
+                    if (local[req.body.problem_id]) {
+                        local[req.body.problem_id].syncedToServer = true;
+                        await chrome.storage.local.set({ pt_problems: local });
+                    }
                 }
             }
         } catch (e) {

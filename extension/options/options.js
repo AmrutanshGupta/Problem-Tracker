@@ -134,6 +134,10 @@ function render() {
   rows.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async e => {
       const id = e.currentTarget.dataset.id;
+      // Remove from server first, then remove from local storage
+      await new Promise(resolve =>
+        chrome.runtime.sendMessage({ action: "BOOKMARK_REMOVE", problem_id: id }, resolve)
+      );
       await PTStorage.remove(id);
       delete allProblems[id];
       render();
