@@ -107,7 +107,10 @@ async function validateAndRefreshToken() {
 // Trigger a full sync immediately when the background script loads (e.g. on
 // extension reload or browser start) so we don't have to wait for the Options page.
 setTimeout(() => {
-    loadBookmarksFromServer().catch(() => {});
+    console.log("[Sync] Extension started, triggering auto-sync...");
+    loadBookmarksFromServer()
+      .then(res => console.log("[Sync] Auto-sync complete:", res))
+      .catch(err => console.error("[Sync] Auto-sync failed:", err));
 }, 2000); // 2 second delay to ensure token is ready if migrating
 
 async function handleBookmarkUpsert(payload) {
@@ -134,8 +137,10 @@ async function handleBookmarkUpsert(payload) {
             await chrome.storage.local.set({ pt_problems: local });
         }
 
+        console.log(`[Sync] Successfully uploaded ${payload.problem_id}`);
         return { ok: true };
     } catch (e) {
+        console.warn(`[Sync] Upload failed for ${payload.problem_id}, queueing for offline...`, e);
         // Server down — enqueue for later sync (deduplication by problem_id)
         const stored = await chrome.storage.local.get(["pt_sync_queue"]);
         const queue = stored.pt_sync_queue || [];
@@ -202,27 +207,33 @@ async function handleBookmarkRemove(problem_id) {
 }
 
 async function loadBookmarksFromServer() {
+    console.log("[Sync] Fetching bookmarks from server...");
     const data = await chrome.storage.local.get(["pt_token"]);
     const token = data.pt_token;
-    if (!token) return { ok: false };
+    if (!token) {
+        console.warn("[Sync] Aborting sync: No auth token found.");
+        return { ok: false };
+    }
 
     try {
         const res = await fetch(`${API_BASE_URL}/bookmarks`, {
             headers: { "Authorization": `Bearer ${token}` },
         });
-        if (!res.ok) return { ok: false };
+        if (!res.ok) {
+            console.error(`[Sync] Fetch failed with status ${res.status}`);
+            return { ok: false };
+        }
         const serverBookmarks = await res.json();
+        console.log(`[Sync] Found ${serverBookmarks.length} bookmarks on server.`);
 
         // ── 3-way merge using syncedToServer flag ─────────────────────────
-        // syncedToServer = true  → was confirmed uploaded; if now missing from
-        //                          server it was deleted remotely → delete locally.
-        // syncedToServer = false/missing → created locally but not yet confirmed
-        //                          on server → upload it (legacy + offline-created).
-        // ──────────────────────────────────────────────────────────────────────
         const stored = await chrome.storage.local.get(["pt_problems"]);
         const local = stored.pt_problems || {};
-
         const serverMap = new Set(serverBookmarks.map(b => b.problem_id));
+
+        let syncUpCount = 0;
+        let syncDownCount = 0;
+        let localDeletes = 0;
 
         // 1. Sync DOWN: add/update everything the server knows about
         for (const bm of serverBookmarks) {
@@ -239,12 +250,14 @@ async function loadBookmarksFromServer() {
                 syncedToServer: true,   // confirmed on server
                 addedAt: existing.addedAt || bm.created_at || null,
             };
+            if (!existing.id) syncDownCount++;
         }
 
         // 2. Sync UP: local bookmarks not on server yet (legacy / created offline)
-        //    Only upload if they were never confirmed on the server.
         for (const [id, bm] of Object.entries(local)) {
             if (bm.bookmarked && !serverMap.has(id) && !bm.syncedToServer) {
+                syncUpCount++;
+                console.log(`[Sync] Uploading legacy/offline bookmark: ${id}`);
                 // Fire-and-forget; handleBookmarkUpsert will mark syncedToServer=true on success
                 handleBookmarkUpsert({
                     problem_id: id,
@@ -261,13 +274,17 @@ async function loadBookmarksFromServer() {
         //    (syncedToServer=true) but is now missing, another browser deleted it.
         for (const id of Object.keys(local)) {
             if (local[id].bookmarked && local[id].syncedToServer && !serverMap.has(id)) {
+                console.log(`[Sync] Remotely deleted, wiping locally: ${id}`);
                 delete local[id];
+                localDeletes++;
             }
         }
 
         await chrome.storage.local.set({ pt_problems: local });
+        console.log(`[Sync] Merge complete. Pushed up: ${syncUpCount}, Pulled down: ${syncDownCount}, Wiped: ${localDeletes}`);
         return { ok: true, count: serverBookmarks.length };
     } catch (e) {
+        console.error("[Sync] Sync failed with exception:", e);
         return { ok: false, error: e.message };
     }
 }
