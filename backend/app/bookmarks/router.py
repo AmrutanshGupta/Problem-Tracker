@@ -18,6 +18,7 @@ class BookmarkCreate(BaseModel):
     title: str
     url: str
     status: str = "unsolved"
+    notes: str | None = None
 
 class BookmarkResponse(BaseModel):
     problem_id: str
@@ -26,6 +27,7 @@ class BookmarkResponse(BaseModel):
     url: str
     is_active: int
     status: str = "unsolved"
+    notes: str | None = None
     created_at: datetime = None
 
     class Config:
@@ -49,6 +51,8 @@ def add_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db), curren
         existing.url = bookmark.url
         existing.platform = bookmark.platform
         existing.status = bookmark.status
+        if bookmark.notes is not None:
+            existing.notes = bookmark.notes
         db.commit()
         db.refresh(existing)
         return existing
@@ -60,7 +64,8 @@ def add_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db), curren
         title=bookmark.title,
         url=bookmark.url,
         is_active=1,
-        status=bookmark.status
+        status=bookmark.status,
+        notes=bookmark.notes
     )
     db.add(new_bm)
     db.commit()

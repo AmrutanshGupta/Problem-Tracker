@@ -107,8 +107,8 @@ export const api = {
     await clearSession();
   },
 
-  bookmark: (problem_id, platform, title, url) =>
-    fetchAPI("/bookmarks", "POST", { problem_id, platform, title, url }),
+  bookmark: (problem_id, platform, title, url, status = "unsolved", notes = "") =>
+    fetchAPI("/bookmarks", "POST", { problem_id, platform, title, url, status, notes }),
 
   /** Fetch all bookmarks from server */
   getBookmarks: () => fetchAPI("/bookmarks", "GET"),

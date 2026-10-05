@@ -31,6 +31,7 @@ class Bookmark(Base):
     url = Column(String)
     is_active = Column(Integer, default=1)
     status = Column(String, default="unsolved")
+    notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class ReviewSchedule(Base):

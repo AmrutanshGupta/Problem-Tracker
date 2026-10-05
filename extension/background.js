@@ -213,6 +213,7 @@ async function loadBookmarksFromServer() {
                 title: bm.title,
                 url: bm.url,
                 status: bm.status || existing.status || "unsolved",
+                notes: bm.notes !== null ? bm.notes : (existing.notes || ""),
                 bookmarked: true,
                 addedAt: existing.addedAt || bm.created_at || null,
             };
@@ -228,7 +229,8 @@ async function loadBookmarksFromServer() {
                     platform: bm.platform,
                     title: bm.title,
                     url: bm.url,
-                    status: bm.status || "unsolved"
+                    status: bm.status || "unsolved",
+                    notes: bm.notes || ""
                 });
             }
         }

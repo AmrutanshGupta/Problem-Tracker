@@ -191,6 +191,7 @@
             title: record.title,
             url: record.url,
             status: record.status,
+            notes: record.notes,
           }
         });
       }
@@ -412,6 +413,17 @@
       saveTimer = setTimeout(async () => {
         if (!record.addedAt) record.addedAt = nowLabel();
         record = await PTStorage.upsert(record);
+        chrome.runtime.sendMessage({
+          action: "BOOKMARK_UPSERT",
+          payload: {
+            problem_id: record.id,
+            platform: record.platform,
+            title: record.title,
+            url: record.url,
+            status: record.status,
+            notes: record.notes,
+          }
+        });
       }, 500);
     });
 

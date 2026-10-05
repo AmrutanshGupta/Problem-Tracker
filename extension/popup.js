@@ -167,7 +167,17 @@ bookmarkBtn.addEventListener('click', async () => {
   const details = await getCurrentProblemDetails();
   bookmarkBtn.disabled = true;
   try {
-    await api.bookmark(details.problem_id, details.platform, details.title, details.url);
+    const stored = await chrome.storage.local.get(["pt_problems"]);
+    const record = (stored.pt_problems || {})[details.problem_id] || {};
+
+    await api.bookmark(
+      details.problem_id, 
+      details.platform, 
+      details.title, 
+      details.url,
+      record.status || "unsolved",
+      record.notes || ""
+    );
     bookmarkBtn.classList.add('success');
     bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
     bookmarkLabel.textContent = 'Bookmarked';
