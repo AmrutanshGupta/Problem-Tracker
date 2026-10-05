@@ -179,8 +179,20 @@
         record.bookmarked = true;
         if (!record.addedAt) record.addedAt = nowLabel();
         if (!record.status) record.status = 'unsolved';
+        // Save to local storage immediately (instant UI feedback)
         record = await PTStorage.upsert(record);
         refreshPillVisual();
+        // Also send to server via background (handles offline queueing)
+        chrome.runtime.sendMessage({
+          action: "BOOKMARK_UPSERT",
+          payload: {
+            problem_id: record.id,
+            platform: record.platform,
+            title: record.title,
+            url: record.url,
+            status: record.status,
+          }
+        });
       }
       expandPanel();
     });
@@ -362,6 +374,7 @@
       e.stopPropagation();
 
       await PTStorage.remove(info.id);
+      chrome.runtime.sendMessage({ action: "BOOKMARK_REMOVE", problem_id: info.id });
 
       record = {
         id: info.id, platform: config.platform, platformLabel: config.platformLabel,
@@ -383,6 +396,12 @@
         // itself and auto-pauses the moment status becomes 'solved'.
         record = await PTStorage.upsert(record);
         renderPanel();
+        // Sync status to server
+        chrome.runtime.sendMessage({
+          action: "BOOKMARK_STATUS",
+          problem_id: record.id,
+          status: record.status,
+        });
       });
     });
 

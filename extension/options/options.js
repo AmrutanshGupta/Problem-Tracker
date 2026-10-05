@@ -192,8 +192,19 @@ async function init() {
     userChip.style.display = 'flex';
   }
 
+  // Load local data immediately for instant render
   allProblems = await PTStorage.getAll();
   render();
+
+  // Then fetch from server and re-render with merged data
+  chrome.runtime.sendMessage({ action: "LOAD_BOOKMARKS" }, (response) => {
+    if (response && response.ok) {
+      PTStorage.getAll().then(merged => {
+        allProblems = merged;
+        render();
+      });
+    }
+  });
 
   document.getElementById('search').addEventListener('input', render);
   document.getElementById('platform-filter').addEventListener('change', render);

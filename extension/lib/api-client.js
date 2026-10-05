@@ -110,6 +110,17 @@ export const api = {
   bookmark: (problem_id, platform, title, url) =>
     fetchAPI("/bookmarks", "POST", { problem_id, platform, title, url }),
 
+  /** Fetch all bookmarks from server */
+  getBookmarks: () => fetchAPI("/bookmarks", "GET"),
+
+  /** Update just the status of a bookmark (solved/unsolved) */
+  updateBookmarkStatus: (problem_id, status) =>
+    fetchAPI(`/bookmarks/${problem_id}`, "PATCH", { status }),
+
+  /** Remove a bookmark */
+  removeBookmark: (problem_id) =>
+    fetchAPI(`/bookmarks/${problem_id}`, "DELETE"),
+
   getActivity: () => fetchAPI("/analytics/activity", "GET"),
 
   getDueReviews: () => fetchAPI("/review/due", "GET"),

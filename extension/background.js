@@ -13,10 +13,40 @@ chrome.runtime.onMessage.addListener((message) => {
 const API_BASE_URL = "https://problem-tracker-backend-a0zr.onrender.com";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "PROBLEM_SOLVED") {
-        // Problem solved event received
-        // Automatically snapshot code on solve (optional v2 feature)
+    // ── Bookmark upsert (called from content-script page icon) ──
+    if (request.action === "BOOKMARK_UPSERT") {
+        handleBookmarkUpsert(request.payload).then(sendResponse).catch(err => {
+            sendResponse({ ok: false, error: err.message });
+        });
+        return true; // keep channel open for async response
     }
+
+    // ── Status update (solved / unsolved from page icon) ──
+    if (request.action === "BOOKMARK_STATUS") {
+        handleBookmarkStatus(request.problem_id, request.status)
+            .then(sendResponse).catch(err => {
+                sendResponse({ ok: false, error: err.message });
+            });
+        return true;
+    }
+
+    // ── Remove bookmark ──
+    if (request.action === "BOOKMARK_REMOVE") {
+        handleBookmarkRemove(request.problem_id).then(sendResponse).catch(err => {
+            sendResponse({ ok: false, error: err.message });
+        });
+        return true;
+    }
+
+    // ── Load bookmarks from server and merge into local storage ──
+    if (request.action === "LOAD_BOOKMARKS") {
+        loadBookmarksFromServer().then(sendResponse).catch(err => {
+            sendResponse({ ok: false, error: err.message });
+        });
+        return true;
+    }
+
+    // ── Trigger offline sync queue manually ──
     if (request.action === "SYNC_QUEUE") {
         processSyncQueue();
     }
@@ -70,6 +100,125 @@ async function validateAndRefreshToken() {
         }
     } catch (_) {
         // Network error — ignore, will retry on next alarm
+    }
+}
+
+async function handleBookmarkUpsert(payload) {
+    const data = await chrome.storage.local.get(["pt_token"]);
+    const token = data.pt_token;
+    if (!token) return { ok: false, error: "not_logged_in" };
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/bookmarks`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { ok: true };
+    } catch (e) {
+        // Server down — enqueue for later sync (deduplication by problem_id)
+        const stored = await chrome.storage.local.get(["pt_sync_queue"]);
+        const queue = stored.pt_sync_queue || [];
+        const alreadyQueued = queue.some(
+            q => q.path === "/bookmarks" && q.body?.problem_id === payload.problem_id
+        );
+        if (!alreadyQueued) {
+            queue.push({ path: "/bookmarks", method: "POST", body: payload });
+            await chrome.storage.local.set({ pt_sync_queue: queue });
+        }
+        return { ok: false, queued: true };
+    }
+}
+
+async function handleBookmarkStatus(problem_id, status) {
+    const data = await chrome.storage.local.get(["pt_token"]);
+    const token = data.pt_token;
+    if (!token) return { ok: false, error: "not_logged_in" };
+
+    const patchPath = `/bookmarks/${encodeURIComponent(problem_id)}`;
+    try {
+        const res = await fetch(`${API_BASE_URL}${patchPath}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { ok: true };
+    } catch (e) {
+        // Enqueue — deduplicate by overwriting any existing status update for same problem
+        const stored = await chrome.storage.local.get(["pt_sync_queue"]);
+        const queue = (stored.pt_sync_queue || []).filter(
+            q => !(q.method === "PATCH" && q.path === patchPath)
+        );
+        queue.push({ path: patchPath, method: "PATCH", body: { status } });
+        await chrome.storage.local.set({ pt_sync_queue: queue });
+        return { ok: false, queued: true };
+    }
+}
+
+async function handleBookmarkRemove(problem_id) {
+    const data = await chrome.storage.local.get(["pt_token"]);
+    const token = data.pt_token;
+    if (!token) return { ok: false, error: "not_logged_in" };
+
+    const deletePath = `/bookmarks/${encodeURIComponent(problem_id)}`;
+    try {
+        const res = await fetch(`${API_BASE_URL}${deletePath}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` },
+        });
+        if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`);
+        return { ok: true };
+    } catch (e) {
+        const stored = await chrome.storage.local.get(["pt_sync_queue"]);
+        const queue = stored.pt_sync_queue || [];
+        queue.push({ path: deletePath, method: "DELETE", body: null });
+        await chrome.storage.local.set({ pt_sync_queue: queue });
+        return { ok: false, queued: true };
+    }
+}
+
+async function loadBookmarksFromServer() {
+    const data = await chrome.storage.local.get(["pt_token"]);
+    const token = data.pt_token;
+    if (!token) return { ok: false };
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/bookmarks`, {
+            headers: { "Authorization": `Bearer ${token}` },
+        });
+        if (!res.ok) return { ok: false };
+        const serverBookmarks = await res.json();
+
+        // Merge: convert server list into the pt_problems map format
+        const stored = await chrome.storage.local.get(["pt_problems"]);
+        const local = stored.pt_problems || {};
+
+        for (const bm of serverBookmarks) {
+            const existing = local[bm.problem_id] || {};
+            local[bm.problem_id] = {
+                ...existing,            // keep local fields like notes, timeSpent
+                id: bm.problem_id,
+                platform: bm.platform,
+                title: bm.title,
+                url: bm.url,
+                status: bm.status || existing.status || "unsolved",
+                bookmarked: true,
+                addedAt: existing.addedAt || bm.created_at || null,
+            };
+        }
+
+        await chrome.storage.local.set({ pt_problems: local });
+        return { ok: true, count: serverBookmarks.length };
+    } catch (e) {
+        return { ok: false, error: e.message };
     }
 }
 

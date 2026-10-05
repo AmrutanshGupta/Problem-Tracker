@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from datetime import datetime
 
 from app.db.session import get_db
 from app.auth.jwt import get_current_user
@@ -16,6 +17,7 @@ class BookmarkCreate(BaseModel):
     platform: str
     title: str
     url: str
+    status: str = "unsolved"
 
 class BookmarkResponse(BaseModel):
     problem_id: str
@@ -23,6 +25,8 @@ class BookmarkResponse(BaseModel):
     title: str
     url: str
     is_active: int
+    status: str = "unsolved"
+    created_at: datetime = None
 
     class Config:
         orm_mode = True
@@ -44,6 +48,7 @@ def add_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db), curren
         existing.title = bookmark.title
         existing.url = bookmark.url
         existing.platform = bookmark.platform
+        existing.status = bookmark.status
         db.commit()
         db.refresh(existing)
         return existing
@@ -54,7 +59,8 @@ def add_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db), curren
         platform=bookmark.platform,
         title=bookmark.title,
         url=bookmark.url,
-        is_active=1
+        is_active=1,
+        status=bookmark.status
     )
     db.add(new_bm)
     db.commit()
@@ -84,3 +90,29 @@ def delete_bookmark(problem_id: str, db: Session = Depends(get_db), current_user
     bm.is_active = 0
     db.commit()
     return {"status": "deleted"}
+
+class BookmarkStatusUpdate(BaseModel):
+    status: str  # "unsolved" or "solved"
+
+@router.patch("/{problem_id}", response_model=BookmarkResponse)
+def update_bookmark_status(
+    problem_id: str,
+    body: BookmarkStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: uuid.UUID = Depends(get_current_user),
+):
+    bm = db.query(Bookmark).filter(
+        Bookmark.problem_id == problem_id,
+        Bookmark.user_id == current_user,
+        Bookmark.is_active == 1,
+    ).first()
+    if not bm:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    bm.status = body.status
+    append_event(db, current_user, "BookmarkStatusChanged", {
+        "problem_id": problem_id,
+        "status": body.status,
+    })
+    db.commit()
+    db.refresh(bm)
+    return bm

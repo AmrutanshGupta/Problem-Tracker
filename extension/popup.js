@@ -290,8 +290,13 @@ async function loadReviews() {
     due.forEach(item => {
       const li = document.createElement('li');
       li.className = 'review-item';
+      const displayTitle = item.title || item.problem_id;
+      const titleHtml = item.url
+        ? `<a class="review-title" href="${item.url}" target="_blank" rel="noopener">${displayTitle}</a>`
+        : `<span class="review-title">${displayTitle}</span>`;
+
       li.innerHTML = `
-        <span class="review-id">${item.problem_id}</span>
+        ${titleHtml}
         <div class="review-actions">
           <button data-q="1" data-id="${item.problem_id}">Hard</button>
           <button data-q="3" data-id="${item.problem_id}">Good</button>

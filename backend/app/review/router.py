@@ -41,7 +41,7 @@ from pydantic import BaseModel, field_validator
 
 from app.db.session import get_db
 from app.auth.jwt import get_current_user
-from app.db.models import ReviewSchedule
+from app.db.models import ReviewSchedule, Bookmark
 from app.events.logger import append_event
 from app.cache.service import cache
 
@@ -59,6 +59,8 @@ class ReviewScheduleResponse(BaseModel):
     repetitions: int
     due_at: datetime
     last_reviewed_at: datetime
+    title: str | None = None
+    url: str | None = None
 
     class Config:
         from_attributes = True
@@ -129,6 +131,39 @@ def _invalidate_user_cache(user_id: uuid.UUID) -> None:
     cache.delete(f"due_reviews_{user_id}")
 
 
+def _enrich_with_bookmark_data(schedules: list, db: Session, user_id) -> list:
+    """
+    For each ReviewSchedule, look up the matching Bookmark (same problem_id + user_id)
+    and attach title + url. Returns a list of dicts so Pydantic can deserialize them.
+    If no matching bookmark exists, title = problem_id, url = None.
+    """
+    if not schedules:
+        return schedules
+
+    # Fetch all relevant bookmarks in ONE query (not N+1)
+    problem_ids = [s.problem_id for s in schedules]
+    bookmarks = db.query(Bookmark).filter(
+        Bookmark.user_id == user_id,
+        Bookmark.problem_id.in_(problem_ids),
+    ).all()
+    bm_map = {bm.problem_id: bm for bm in bookmarks}
+
+    enriched = []
+    for s in schedules:
+        bm = bm_map.get(s.problem_id)
+        enriched.append({
+            "problem_id": s.problem_id,
+            "ease_factor": s.ease_factor,
+            "interval_days": s.interval_days,
+            "repetitions": s.repetitions,
+            "due_at": s.due_at,
+            "last_reviewed_at": s.last_reviewed_at,
+            "title": bm.title if bm else s.problem_id,
+            "url": bm.url if bm else None,
+        })
+    return enriched
+
+
 @router.get("/due", response_model=List[ReviewScheduleResponse])
 def get_due_reviews(
     db: Session = Depends(get_db),
@@ -151,8 +186,9 @@ def get_due_reviews(
         .all()
     )
 
-    cache.set(cache_key, due)
-    return due
+    enriched = _enrich_with_bookmark_data(due, db, current_user)
+    cache.set(cache_key, enriched)
+    return enriched
 
 
 @router.get("/all", response_model=List[ReviewScheduleResponse])
@@ -161,12 +197,13 @@ def get_all_reviews(
     current_user: uuid.UUID = Depends(get_current_user),
 ):
     """Return every review card for the current user, regardless of due date."""
-    return (
+    schedules = (
         db.query(ReviewSchedule)
         .filter(ReviewSchedule.user_id == current_user)
         .order_by(ReviewSchedule.due_at.asc())
         .all()
     )
+    return _enrich_with_bookmark_data(schedules, db, current_user)
 
 
 @router.post("/{problem_id}/schedule", response_model=ReviewScheduleResponse)
