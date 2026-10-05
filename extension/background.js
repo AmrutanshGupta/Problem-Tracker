@@ -103,6 +103,13 @@ async function validateAndRefreshToken() {
     }
 }
 
+// ── Auto-sync on startup ─────────────────────────────────────────────────────
+// Trigger a full sync immediately when the background script loads (e.g. on
+// extension reload or browser start) so we don't have to wait for the Options page.
+setTimeout(() => {
+    loadBookmarksFromServer().catch(() => {});
+}, 2000); // 2 second delay to ensure token is ready if migrating
+
 async function handleBookmarkUpsert(payload) {
     const data = await chrome.storage.local.get(["pt_token", "pt_problems"]);
     const token = data.pt_token;
@@ -240,7 +247,7 @@ async function loadBookmarksFromServer() {
             if (bm.bookmarked && !serverMap.has(id) && !bm.syncedToServer) {
                 // Fire-and-forget; handleBookmarkUpsert will mark syncedToServer=true on success
                 handleBookmarkUpsert({
-                    problem_id: bm.id,
+                    problem_id: id,
                     platform: bm.platform,
                     title: bm.title,
                     url: bm.url,
