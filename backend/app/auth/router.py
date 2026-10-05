@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+import bcrypt
+import uuid
 
 from app.auth.jwt import create_access_token, get_current_user
 from app.config import settings
 from app.db.session import get_db
 from app.db.models import User
-from passlib.hash import bcrypt
-import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,7 +30,7 @@ async def register(form_data: OAuth2PasswordRequestForm = Depends(), db: Session
     user = User(
         id=uuid.uuid4(),
         username=form_data.username,
-        hashed_password=bcrypt.hash(form_data.password)
+        hashed_password=bcrypt.hashpw(form_data.password.encode(), bcrypt.gensalt()).decode()
     )
     db.add(user)
     db.commit()
@@ -54,7 +54,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if not bcrypt.verify(form_data.password, user.hashed_password):
+    if not bcrypt.checkpw(form_data.password.encode(), user.hashed_password.encode()):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

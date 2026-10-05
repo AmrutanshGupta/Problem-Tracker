@@ -17,7 +17,7 @@ class EventLog(Base):
     __tablename__ = "event_log"
     event_id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), index=True)
-    event_type = Column(String, index=True) # BookmarkAdded, SnapshotSaved, etc.
+    event_type = Column(String, index=True) # BookmarkAdded, ReviewCompleted, etc.
     payload = Column(JSON)
     client_timestamp = Column(DateTime)
     server_timestamp = Column(DateTime, default=datetime.utcnow)
@@ -33,12 +33,19 @@ class Bookmark(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class ReviewSchedule(Base):
+    """
+    SM2 spaced-repetition schedule per user per problem.
+    Fields follow the canonical SuperMemo-2 algorithm:
+      - ease_factor   : starts at 2.5, adjusted per review (min 1.3)
+      - interval_days : days until next review
+      - repetitions   : number of consecutive successful reviews (q >= 3)
+    """
     __tablename__ = "review_schedule"
     problem_id = Column(String, primary_key=True)
     user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), primary_key=True)
     ease_factor = Column(Float, default=2.5)
-    interval_days = Column(Integer, default=3)
-    repetition_count = Column(Integer, default=0)
+    interval_days = Column(Integer, default=1)
+    repetitions = Column(Integer, default=0)   # consecutive successes, resets on failure
     due_at = Column(DateTime)
     last_reviewed_at = Column(DateTime, default=datetime.utcnow)
 
@@ -49,4 +56,3 @@ class UserDailyActivity(Base):
     reviews_completed = Column(Integer, default=0)
     bookmarks_added = Column(Integer, default=0)
     last_updated = Column(DateTime, default=datetime.utcnow)
-
