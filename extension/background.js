@@ -201,6 +201,9 @@ async function loadBookmarksFromServer() {
         const stored = await chrome.storage.local.get(["pt_problems"]);
         const local = stored.pt_problems || {};
 
+        const serverMap = new Set(serverBookmarks.map(b => b.problem_id));
+
+        // 1. Sync DOWN (from server to local)
         for (const bm of serverBookmarks) {
             const existing = local[bm.problem_id] || {};
             local[bm.problem_id] = {
@@ -213,6 +216,21 @@ async function loadBookmarksFromServer() {
                 bookmarked: true,
                 addedAt: existing.addedAt || bm.created_at || null,
             };
+        }
+
+        // 2. Sync UP (from local to server) for legacy bookmarks
+        // This ensures the 33 bookmarks you saved before this update get pushed to the cloud
+        for (const [id, bm] of Object.entries(local)) {
+            if (bm.bookmarked && !serverMap.has(id)) {
+                // Enqueue them to be uploaded in the background
+                handleBookmarkUpsert({
+                    problem_id: bm.id,
+                    platform: bm.platform,
+                    title: bm.title,
+                    url: bm.url,
+                    status: bm.status || "unsolved"
+                });
+            }
         }
 
         await chrome.storage.local.set({ pt_problems: local });
