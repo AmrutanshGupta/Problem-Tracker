@@ -27,6 +27,9 @@ const headerProfile   = document.getElementById('header-profile');
 const avatarInitials  = document.getElementById('avatar-initials');
 const profileUsername = document.getElementById('profile-username');
 
+const totalBookmarksEl = document.getElementById('total-bookmarks');
+const solvedCountEl    = document.getElementById('solved-count');
+
 const tabLogin    = document.getElementById('tab-login');
 const tabRegister = document.getElementById('tab-register');
 
@@ -206,7 +209,7 @@ bookmarkBtn.addEventListener('click', async () => {
     bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
     bookmarkLabel.textContent = 'Bookmarked';
     showToast('Problem bookmarked', 'success');
-    await loadActivity();
+    await loadLocalStats();
     setTimeout(() => {
       bookmarkBtn.classList.remove('success');
       bookmarkIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
@@ -251,7 +254,7 @@ function showMainUI(username) {
   const initials = username ? username.slice(0, 2).toUpperCase() : '?';
   avatarInitials.textContent  = initials;
   profileUsername.textContent = username || '—';
-  loadActivity();
+  loadLocalStats();
   loadReviews();
 }
 
@@ -299,13 +302,31 @@ async function getCurrentProblemDetails() {
   };
 }
 
+// ─── Stats from local storage ─────────────────────────────────────────────────
+// Read bookmark counts directly from local storage — instant, no API needed.
+
+async function loadLocalStats() {
+  try {
+    const data = await chrome.storage.local.get(['pt_problems']);
+    const problems = data.pt_problems || {};
+    const bookmarked = Object.values(problems).filter(p => p.bookmarked);
+    const total  = bookmarked.length;
+    const solved = bookmarked.filter(p => p.status === 'solved').length;
+    totalBookmarksEl.textContent = total;
+    solvedCountEl.textContent    = solved;
+  } catch (e) {
+    console.error('Failed to load local stats', e);
+  }
+}
+
+// Keep loadActivity for backward compat but it's no longer called from showMainUI.
 async function loadActivity() {
   try {
     const activity = await api.getActivity();
     if (activity && activity.length > 0) {
       const today = activity[0];
-      document.getElementById('today-reviews').textContent   = today.reviews_completed || 0;
-      document.getElementById('today-bookmarks').textContent = today.bookmarks_added   || 0;
+      document.getElementById('today-reviews') && (document.getElementById('today-reviews').textContent = today.reviews_completed || 0);
+      document.getElementById('today-bookmarks') && (document.getElementById('today-bookmarks').textContent = today.bookmarks_added   || 0);
     }
   } catch (e) {
     console.error('Failed to load activity', e);
