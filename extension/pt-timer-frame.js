@@ -14,9 +14,7 @@
   let displayInterval = null;
   let syncInterval = null;
 
-  // Track whether the timer was running before we auto-paused it on hide,
-  // so we can auto-resume it when the tab becomes visible again.
-  let wasRunningBeforeHide = false;
+  // (no pause-on-hide flag needed — the timer keeps running in the background)
 
   const display = document.getElementById('pt-time-display');
   const playBtn = document.getElementById('pt-playpause');
@@ -139,75 +137,46 @@
     }
   }
 
-  // ── Pause on hide, resume on show ─────────────────────────────────────
-  // This is the key fix: instead of letting the browser throttle/freeze
-  // setInterval silently, we explicitly pause the timer when the tab is
-  // hidden and resume it when visible. The saved timeSpent is accurate
-  // because we always use wall-clock math before pausing.
+  // ── Keep timer running when tab is hidden ────────────────────────────────
+  // The timer NEVER pauses when the tab goes into the background.
+  // timekeeping is pure wall-clock math (Date.now() - startedAt), so
+  // browser throttling of setInterval has zero effect on accuracy.
   //
-  // Consequence: closing the tab triggers 'hidden' → timer is paused and
-  // persisted. Reopening the tab (same or new window) shows the exact
-  // time at which you left, with the timer paused.
-  async function pauseForHide() {
-    if (!timerRecord || !timerRecord.timerRunning) {
-      wasRunningBeforeHide = false;
-      return;
-    }
-    wasRunningBeforeHide = true;
-    const updated = {
-      ...timerRecord,
-      timeSpent: currentTotalSeconds(),
-      timerRunning: false,
-      startedAt: null
-    };
-    timerRecord = updated;
-    updatePlayButton();
-    manageTicking();
-    // Persist synchronously-ish before the tab is suspended
-    timerRecord = await upsertTimer(updated);
-    updatePlayButton();
-  }
-
-  async function resumeAfterShow() {
-    if (!wasRunningBeforeHide) {
-      // Timer was already paused by the user — just refresh the display.
-      renderDisplay();
-      return;
-    }
-    wasRunningBeforeHide = false;
-    if (!timerRecord) return;
-    const updated = {
-      ...timerRecord,
-      timerRunning: true,
-      startedAt: Date.now()
-    };
-    timerRecord = updated;
-    updatePlayButton();
-    renderDisplay();
-    manageTicking();
-    timerRecord = await upsertTimer(updated);
-    updatePlayButton();
-  }
-
+  // On tab re-focus: snap the display to the correct time immediately,
+  // then restart the display interval at full 1 Hz for smooth ticking.
+  // On tab close (beforeunload): finalize & persist the elapsed time.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      pauseForHide();
-    } else {
-      resumeAfterShow();
+    if (document.visibilityState === 'visible') {
+      // Immediately show the correct accumulated time.
+      renderDisplay();
+      // Restart display interval at full 1 Hz (browser may have throttled it).
+      if (timerRecord && timerRecord.timerRunning) {
+        if (displayInterval) {
+          clearInterval(displayInterval);
+          displayInterval = null;
+        }
+        displayInterval = setInterval(renderDisplay, 1000);
+      }
     }
+    // On 'hidden': do nothing — the wall-clock anchor keeps accruing time.
   });
 
-  // Also pause on beforeunload as a belt-and-suspenders safety net
-  // (visibilitychange fires first in most cases, but beforeunload catches edge cases).
+  // Tab closed/reloaded: write a fresh checkpoint so the wall-clock anchor
+  // stays accurate.
+  //
+  // We use a sessionStorage flag to distinguish reload from close:
+  //   - Reload: sessionStorage survives → init() resumes the timer seamlessly.
+  //   - Close:  sessionStorage dies with the tab → init() on next open pauses
+  //             the timer at the accumulated time so no phantom time is added.
   window.addEventListener('beforeunload', () => {
     if (timerRecord && timerRecord.timerRunning) {
-      // Synchronous storage isn't available, but we can at least update timerRecord
-      // in memory; the async upsert will race but often wins before the page dies.
+      // Mark this as a reload so init() can tell the difference.
+      try { sessionStorage.setItem('pt_reloading_' + problemId, '1'); } catch (_) {}
       const updated = {
         ...timerRecord,
         timeSpent: currentTotalSeconds(),
-        timerRunning: false,
-        startedAt: null
+        startedAt: Date.now(), // fresh anchor so reload math is correct
+        timerRunning: true
       };
       timerRecord = updated;
       upsertTimer(updated);
@@ -223,7 +192,6 @@
       updated.timeSpent = currentTotalSeconds();
       updated.timerRunning = false;
       updated.startedAt = null;
-      wasRunningBeforeHide = false; // user manually paused, don't auto-resume
     } else {
       // Resume: start a fresh wall-clock segment from now.
       updated.timerRunning = true;
@@ -242,7 +210,6 @@
   resetBtn.addEventListener('click', async () => {
     if (!timerRecord) return;
 
-    wasRunningBeforeHide = false;
     const updated = { ...timerRecord, timeSpent: 0, timerRunning: false, startedAt: null };
     timerRecord = updated;
     renderDisplay();
@@ -280,7 +247,6 @@
             startedAt: null
           };
           timerRecord = await upsertTimer(updated);
-          wasRunningBeforeHide = false;
           updatePlayButton();
           renderDisplay();
           manageTicking();
@@ -316,15 +282,28 @@
       id: problemId, timeSpent: 0, timerRunning: false, startedAt: null
     };
 
-    // If we find a record that was left in timerRunning=true with a startedAt
-    // (e.g. crash / hard kill that skipped visibilitychange), recover gracefully:
-    // treat it as paused at the computed elapsed time rather than fast-forwarding.
+    // If we find a record with timerRunning=true, figure out intent:
+    //
+    //  (a) Reload: sessionStorage has 'pt_reloading_<id>' → resume seamlessly.
+    //  (b) Close+reopen: sessionStorage is empty → pause at accumulated time.
+    //  (c) Crash / computer sleep (gap > 4h): always pause.
+    const MAX_UNATTENDED_MS = 4 * 60 * 60 * 1000; // 4 hours
     if (timerRecord.timerRunning && timerRecord.startedAt) {
-      // Calculate how long it was "running" since last checkpoint.
-      // We intentionally keep it paused on load — the user can resume manually.
-      const elapsed = currentTotalSeconds();
-      timerRecord = { ...timerRecord, timeSpent: elapsed, timerRunning: false, startedAt: null };
-      await upsertTimer(timerRecord);
+      const gap = Date.now() - timerRecord.startedAt;
+      const isReload = (() => {
+        try { return sessionStorage.getItem('pt_reloading_' + problemId) === '1'; } catch (_) { return false; }
+      })();
+      // Always clear the flag right away.
+      try { sessionStorage.removeItem('pt_reloading_' + problemId); } catch (_) {}
+
+      if (isReload && gap <= MAX_UNATTENDED_MS) {
+        // Normal reload — resume seamlessly; manageTicking() below handles the rest.
+      } else {
+        // Tab was closed and reopened, or computer slept — pause at saved time.
+        const elapsed = currentTotalSeconds();
+        timerRecord = { ...timerRecord, timeSpent: elapsed, timerRunning: false, startedAt: null };
+        await upsertTimer(timerRecord);
+      }
     }
 
     if (!hasSessionStarted()) {
