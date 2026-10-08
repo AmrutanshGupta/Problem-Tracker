@@ -54,12 +54,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Periodic sync every minute, keepalive every 14 min, token validation daily
 chrome.alarms.create("syncAlarm",      { periodInMinutes: 1 });
+chrome.alarms.create("timerCheckpoint",{ periodInMinutes: 1 });
 chrome.alarms.create("keepAlive",      { periodInMinutes: 14 });
 chrome.alarms.create("tokenCheck",     { periodInMinutes: 60 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "syncAlarm") {
         processSyncQueue();
+    }
+    if (alarm.name === "timerCheckpoint") {
+        checkpointTimers();
     }
     if (alarm.name === "keepAlive") {
         fetch(`${API_BASE_URL}/health`).catch(() => {});
@@ -68,6 +72,93 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         validateAndRefreshToken();
     }
 });
+
+// ── Timer State Management ──────────────────────────────────────────────────
+const activeTimerPorts = new Map(); // problemId -> Set<chrome.runtime.Port>
+
+chrome.runtime.onConnect.addListener((port) => {
+    if (port.name.startsWith('timer-')) {
+        const problemId = port.name.slice(6);
+        if (!activeTimerPorts.has(problemId)) {
+            activeTimerPorts.set(problemId, new Set());
+        }
+        activeTimerPorts.get(problemId).add(port);
+
+        port.onDisconnect.addListener(async () => {
+            const ports = activeTimerPorts.get(problemId);
+            if (ports) {
+                ports.delete(port);
+                if (ports.size === 0) {
+                    activeTimerPorts.delete(problemId);
+                    // All tabs for this problem closed. Pause the timer.
+                    await pauseTimerForProblem(problemId);
+                }
+            }
+        });
+    }
+});
+
+async function pauseTimerForProblem(problemId) {
+    try {
+        const data = await chrome.storage.local.get(["pt_timers", "pt_problems"]);
+        const allTimers = data.pt_timers || {};
+        const rec = allTimers[problemId];
+
+        if (rec && rec.timerRunning && rec.startedAt) {
+            const elapsed = Math.floor((Date.now() - rec.startedAt) / 1000);
+            rec.timeSpent = (rec.timeSpent || 0) + Math.max(0, elapsed);
+            rec.timerRunning = false;
+            rec.startedAt = null;
+
+            await chrome.storage.local.set({ pt_timers: allTimers });
+
+            const allProblems = data.pt_problems || {};
+            if (allProblems[problemId]) {
+                allProblems[problemId].timeSpent = rec.timeSpent;
+                await chrome.storage.local.set({ pt_problems: allProblems });
+            }
+        }
+    } catch (e) {
+        console.warn("[Timer] Failed to pause timer:", e);
+    }
+}
+
+async function checkpointTimers() {
+    try {
+        const data = await chrome.storage.local.get(["pt_timers", "pt_problems"]);
+        const allTimers = data.pt_timers || {};
+        const allProblems = data.pt_problems || {};
+        let updatedTimers = false;
+        let updatedProblems = false;
+
+        const now = Date.now();
+        
+        for (const [id, rec] of Object.entries(allTimers)) {
+            if (rec.timerRunning && rec.startedAt) {
+                const elapsed = Math.floor((now - rec.startedAt) / 1000);
+                if (elapsed > 0) {
+                    rec.timeSpent = (rec.timeSpent || 0) + elapsed;
+                    rec.startedAt = now;
+                    updatedTimers = true;
+                    
+                    if (allProblems[id]) {
+                        allProblems[id].timeSpent = rec.timeSpent;
+                        updatedProblems = true;
+                    }
+                }
+            }
+        }
+        
+        if (updatedTimers) {
+            await chrome.storage.local.set({ pt_timers: allTimers });
+        }
+        if (updatedProblems) {
+            await chrome.storage.local.set({ pt_problems: allProblems });
+        }
+    } catch (e) {
+        console.warn("[Timer] Checkpoint failed:", e);
+    }
+}
 
 /**
  * Validates the stored token by hitting /auth/me.

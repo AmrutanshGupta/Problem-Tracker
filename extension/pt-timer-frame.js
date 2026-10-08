@@ -12,9 +12,50 @@
   // Even if the browser throttles this interval on a hidden tab, the display
   // instantly corrects itself the moment the tab becomes visible again.
   let displayInterval = null;
-  let syncInterval = null;
 
-  // (no pause-on-hide flag needed — the timer keeps running in the background)
+  // ── Context validity guard ────────────────────────────────────────────────
+  // When the extension reloads the service-worker context is destroyed but
+  // the iframe page keeps running.  Any chrome.* API call then throws
+  // "Extension context invalidated".  We detect this and self-destruct cleanly.
+  function isContextValid() {
+    try { return !!(chrome && chrome.runtime && chrome.runtime.id); }
+    catch (_) { return false; }
+  }
+
+  function selfDestruct() {
+    if (displayInterval) { clearInterval(displayInterval); displayInterval = null; }
+    if (display) display.style.opacity = '0.4';
+    if (port) { port.disconnect(); port = null; }
+  }
+
+  let port = null;
+  function connectPort() {
+    if (!isContextValid()) return;
+    try {
+      port = chrome.runtime.connect({ name: 'timer-' + problemId });
+      port.onDisconnect.addListener(() => {
+        // Only attempt reconnect if context is still valid
+        if (isContextValid()) {
+          setTimeout(connectPort, 1000);
+        }
+      });
+    } catch (_) {}
+  }
+  connectPort();
+
+  // Safe wrappers that silently swallow context-death errors.
+  async function safeStorageGet(key) {
+    if (!isContextValid()) { selfDestruct(); return {}; }
+    try { return await chrome.storage.local.get(key); }
+    catch (e) { if (!isContextValid()) selfDestruct(); return {}; }
+  }
+
+  async function safeStorageSet(obj) {
+    if (!isContextValid()) { selfDestruct(); return; }
+    try { await chrome.storage.local.set(obj); }
+    catch (e) { if (!isContextValid()) selfDestruct(); }
+  }
+
 
   const display = document.getElementById('pt-time-display');
   const playBtn = document.getElementById('pt-playpause');
@@ -66,17 +107,23 @@
   }
 
   async function getAllTimers() {
-    const r = await chrome.storage.local.get(TIMER_KEY);
+    const r = await safeStorageGet(TIMER_KEY);
     return r[TIMER_KEY] || {};
   }
 
   async function upsertTimer(rec) {
-    const snapshot = { ...rec };
-    const all = await getAllTimers();
-    all[snapshot.id] = snapshot;
-    await chrome.storage.local.set({ [TIMER_KEY]: all });
-    mirrorTimeToBookmark(currentTotalSecondsFor(snapshot));
-    return snapshot;
+    if (!isContextValid()) return rec;
+    try {
+      const snapshot = { ...rec };
+      const all = await getAllTimers();
+      all[snapshot.id] = snapshot;
+      await safeStorageSet({ [TIMER_KEY]: all });
+      mirrorTimeToBookmark(currentTotalSecondsFor(snapshot));
+      return snapshot;
+    } catch (e) {
+      console.warn('upsertTimer error:', e);
+      return rec;
+    }
   }
 
   function currentTotalSecondsFor(rec) {
@@ -88,52 +135,42 @@
   }
 
   async function mirrorTimeToBookmark(seconds) {
+    if (!isContextValid()) return;
     try {
-      const r = await chrome.storage.local.get(PROBLEM_KEY);
+      const r = await safeStorageGet(PROBLEM_KEY);
       const all = r[PROBLEM_KEY] || {};
       const existing = all[problemId];
       if (existing) {
         all[problemId] = { ...existing, timeSpent: seconds };
-        await chrome.storage.local.set({ [PROBLEM_KEY]: all });
+        await safeStorageSet({ [PROBLEM_KEY]: all });
       }
-    } catch (e) {
+    } catch (_) {
       // Non-critical — the timer's own storage is unaffected either way.
     }
   }
 
   async function getProblemStatus() {
-    const r = await chrome.storage.local.get(PROBLEM_KEY);
-    const all = r[PROBLEM_KEY] || {};
-    return all[problemId] ? all[problemId].status : 'unsolved';
+    try {
+      const r = await safeStorageGet(PROBLEM_KEY);
+      const all = r[PROBLEM_KEY] || {};
+      return all[problemId] ? all[problemId].status : 'unsolved';
+    } catch (_) {
+      return 'unsolved';
+    }
   }
 
-  // Checkpoint: finalize elapsed time into timeSpent and reset startedAt to now.
-  // Used by the periodic sync interval to keep storage fresh.
-  async function syncTime() {
-    if (!timerRecord || !timerRecord.timerRunning || !timerRecord.startedAt) return;
-    const updated = {
-      ...timerRecord,
-      timeSpent: currentTotalSeconds(),
-      startedAt: Date.now()
-    };
-    timerRecord = await upsertTimer(updated);
-  }
 
   function manageTicking() {
     const shouldRun = !!(timerRecord && timerRecord.timerRunning);
 
     if (shouldRun && !displayInterval) {
-      displayInterval = setInterval(renderDisplay, 1000);
+      displayInterval = setInterval(() => {
+        if (!isContextValid()) { selfDestruct(); return; }
+        renderDisplay();
+      }, 1000);
     } else if (!shouldRun && displayInterval) {
       clearInterval(displayInterval);
       displayInterval = null;
-    }
-
-    if (shouldRun && !syncInterval) {
-      syncInterval = setInterval(syncTime, 15000);
-    } else if (!shouldRun && syncInterval) {
-      clearInterval(syncInterval);
-      syncInterval = null;
     }
   }
 
@@ -146,45 +183,37 @@
   // then restart the display interval at full 1 Hz for smooth ticking.
   // On tab close (beforeunload): finalize & persist the elapsed time.
   document.addEventListener('visibilitychange', () => {
+    if (!isContextValid()) { selfDestruct(); return; }
     if (document.visibilityState === 'visible') {
       // Immediately show the correct accumulated time.
       renderDisplay();
       // Restart display interval at full 1 Hz (browser may have throttled it).
       if (timerRecord && timerRecord.timerRunning) {
-        if (displayInterval) {
-          clearInterval(displayInterval);
-          displayInterval = null;
-        }
-        displayInterval = setInterval(renderDisplay, 1000);
+        if (displayInterval) { clearInterval(displayInterval); displayInterval = null; }
+        displayInterval = setInterval(() => {
+          if (!isContextValid()) { selfDestruct(); return; }
+          renderDisplay();
+        }, 1000);
       }
     }
     // On 'hidden': do nothing — the wall-clock anchor keeps accruing time.
   });
 
-  // Tab closed/reloaded: write a fresh checkpoint so the wall-clock anchor
-  // stays accurate.
-  //
+  // Tab closed/reloaded: 
   // We use a sessionStorage flag to distinguish reload from close:
   //   - Reload: sessionStorage survives → init() resumes the timer seamlessly.
-  //   - Close:  sessionStorage dies with the tab → init() on next open pauses
-  //             the timer at the accumulated time so no phantom time is added.
+  //   - Close:  sessionStorage dies with the tab → port disconnects, background pauses timer.
   window.addEventListener('beforeunload', () => {
+    if (!isContextValid()) return;
     if (timerRecord && timerRecord.timerRunning) {
       // Mark this as a reload so init() can tell the difference.
       try { sessionStorage.setItem('pt_reloading_' + problemId, '1'); } catch (_) {}
-      const updated = {
-        ...timerRecord,
-        timeSpent: currentTotalSeconds(),
-        startedAt: Date.now(), // fresh anchor so reload math is correct
-        timerRunning: true
-      };
-      timerRecord = updated;
-      upsertTimer(updated);
     }
   });
 
   playBtn.addEventListener('click', async () => {
     if (!timerRecord) return; // timer hasn't finished loading yet — ignore the click
+    if (!isContextValid()) return;
 
     const updated = { ...timerRecord };
     if (updated.timerRunning) {
@@ -209,6 +238,7 @@
 
   resetBtn.addEventListener('click', async () => {
     if (!timerRecord) return;
+    if (!isContextValid()) return;
 
     const updated = { ...timerRecord, timeSpent: 0, timerRunning: false, startedAt: null };
     timerRecord = updated;
@@ -219,60 +249,67 @@
     timerRecord = await upsertTimer(updated);
   });
 
-  chrome.storage.onChanged.addListener((changes) => {
-    if (changes[TIMER_KEY]) {
-      const all = changes[TIMER_KEY].newValue || {};
-      const updated = all[problemId];
-      if (updated) {
-        timerRecord = updated;
-        renderDisplay();
-        updatePlayButton();
-        manageTicking();
-      }
-    }
+  // Guard: if context is already dead at page load time, skip listener registration.
+  if (isContextValid()) {
+    chrome.storage.onChanged.addListener((changes) => {
+      if (!isContextValid()) { selfDestruct(); return; }
 
-    if (changes[PROBLEM_KEY]) {
-      const newAll = changes[PROBLEM_KEY].newValue || {};
-      const oldAll = changes[PROBLEM_KEY].oldValue || {};
-      const p    = newAll[problemId];
-      const oldP = oldAll[problemId];
-
-      // solved → auto-pause
-      if (p && p.status === 'solved' && timerRecord && timerRecord.timerRunning) {
-        (async () => {
-          const updated = {
-            ...timerRecord,
-            timeSpent: currentTotalSeconds(),
-            timerRunning: false,
-            startedAt: null
-          };
-          timerRecord = await upsertTimer(updated);
-          updatePlayButton();
+      if (changes[TIMER_KEY]) {
+        const all = changes[TIMER_KEY].newValue || {};
+        const updated = all[problemId];
+        if (updated) {
+          timerRecord = updated;
           renderDisplay();
+          updatePlayButton();
           manageTicking();
-        })();
+        }
       }
 
-      // solved → unsolved: auto-resume (only on a real status transition)
-      if (
-        p && p.status === 'unsolved' &&
-        oldP && oldP.status === 'solved' &&
-        timerRecord && !timerRecord.timerRunning
-      ) {
-        (async () => {
-          const updated = {
-            ...timerRecord,
-            timerRunning: true,
-            startedAt: Date.now()
-          };
-          timerRecord = await upsertTimer(updated);
-          updatePlayButton();
-          renderDisplay();
-          manageTicking();
-        })();
+      if (changes[PROBLEM_KEY]) {
+        const newAll = changes[PROBLEM_KEY].newValue || {};
+        const oldAll = changes[PROBLEM_KEY].oldValue || {};
+        const p    = newAll[problemId];
+        const oldP = oldAll[problemId];
+
+        // solved → auto-pause
+        if (p && p.status === 'solved' && timerRecord && timerRecord.timerRunning) {
+          (async () => {
+            if (!isContextValid()) return;
+            const updated = {
+              ...timerRecord,
+              timeSpent: currentTotalSeconds(),
+              timerRunning: false,
+              startedAt: null
+            };
+            timerRecord = await upsertTimer(updated);
+            updatePlayButton();
+            renderDisplay();
+            manageTicking();
+          })();
+        }
+
+        // solved → unsolved: auto-resume (only on a real status transition)
+        if (
+          p && p.status === 'unsolved' &&
+          oldP && oldP.status === 'solved' &&
+          timerRecord && !timerRecord.timerRunning
+        ) {
+          (async () => {
+            if (!isContextValid()) return;
+            const updated = {
+              ...timerRecord,
+              timerRunning: true,
+              startedAt: Date.now()
+            };
+            timerRecord = await upsertTimer(updated);
+            updatePlayButton();
+            renderDisplay();
+            manageTicking();
+          })();
+        }
       }
-    }
-  });
+    });
+  }
 
   async function init() {
     if (!problemId) return;
