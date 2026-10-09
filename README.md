@@ -1,10 +1,23 @@
-﻿# 🚀 Problem Tracker (v2.0)
+# 🚀 Problem Tracker (v2.0)
 
 **Track Every Problem. Forget Nothing.**
 
 An offline-first Chrome extension that bookmarks and schedules your competitive programming practice across **LeetCode**, **Codeforces**, **CSES**, and **AtCoder** — so patterns stick instead of slipping away. 
 
 Problem Tracker is a full-stack, distributed application built to demonstrate robust **System Design** principles, including advanced caching strategies, simulated materialized views, event sourcing, and offline-first client architecture.
+
+---
+
+## 📥 Installation & Setup
+
+Since the Problem Tracker backend is fully deployed in the cloud, you do not need to run any servers locally! Just install the Chrome extension and you're good to go.
+
+### Chrome Extension Setup
+1. Open Google Chrome and navigate to `chrome://extensions`.
+2. Toggle **Developer mode** ON (top right corner).
+3. Click **Load unpacked**.
+4. Select the `extension/` folder from this repository.
+5. You're ready! Start bookmarking problems and the extension will sync seamlessly with our deployed cloud backend.
 
 ---
 
@@ -46,9 +59,21 @@ problem-tracker/
 
 ---
 
-## 🛠️ Getting Started Locally
+## ☁️ Deployment Architecture
 
-### 1. Backend Setup (FastAPI)
+This project is deployed using modern Infrastructure-as-Code (IaC) and CI/CD pipelines:
+
+*   **Backend (Render)**: The `render.yaml` file automatically provisions a free PostgreSQL database and deploys the FastAPI web service via GitHub Webhooks. The `startCommand` dynamically runs Alembic migrations before booting Uvicorn to guarantee schema safety.
+*   **Frontend (Vercel)**: The `marketing-site` is deployed on Vercel as an optimized static Next.js site.
+*   **CI/CD Pipeline**: A GitHub Actions workflow (`.github/workflows/ci.yml`) automatically tests the backend (`pytest`) and verifies the Next.js build on every push to the `main` branch.
+
+---
+
+## 🛠️ Development & Contributing
+
+If you wish to run the backend or marketing site locally for development:
+
+### Backend Setup (FastAPI)
 The backend uses Python 3.11+. Locally, it safely defaults to SQLite so you don't need a running Postgres server.
 
 ```bash
@@ -63,28 +88,11 @@ alembic upgrade head
 # Start the server
 uvicorn app.main:app --reload
 ```
+*(Note: To point the extension to your local backend during development, change `API_BASE_URL` in `extension/lib/api-client.js` to `http://localhost:8000`)*.
 
-### 2. Chrome Extension Setup
-1. Open Google Chrome and navigate to `chrome://extensions`.
-2. Toggle **Developer mode** ON (top right corner).
-3. Click **Load unpacked**.
-4. Select the `extension/` folder from this repository.
-5. *(Note: By default, `extension/lib/api-client.js` is pointed to the live production server. To test locally, change `API_BASE_URL` back to `http://localhost:8000`)*.
-
-### 3. Marketing Site Setup (Next.js)
+### Marketing Site Setup (Next.js)
 ```bash
 cd marketing-site
 npm install
 npm run dev
 ```
-
----
-
-## ☁️ Deployment Architecture
-
-This project is deployed using modern Infrastructure-as-Code (IaC) and CI/CD pipelines:
-
-*   **Backend (Render)**: The `render.yaml` file automatically provisions a free PostgreSQL database and deploys the FastAPI web service via GitHub Webhooks. The `startCommand` dynamically runs Alembic migrations before booting Uvicorn to guarantee schema safety.
-*   **Frontend (Vercel)**: The `marketing-site` is deployed on Vercel as an optimized static Next.js site.
-*   **CI/CD Pipeline**: A GitHub Actions workflow (`.github/workflows/ci.yml`) automatically tests the backend (`pytest`) and verifies the Next.js build on every push to the `main` branch.
-
